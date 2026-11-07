@@ -30,22 +30,56 @@ final class EncodingTests: XCTestCase {
     }
 
     func testAutomaticFormatSelection() {
-        XCTAssertEqual(BarcodeFormat.resolved(digitCount: 7, requested: .automatic), .code128)
-        XCTAssertEqual(BarcodeFormat.resolved(digitCount: 11, requested: .automatic), .upcA)
-        XCTAssertEqual(BarcodeFormat.resolved(digitCount: 12, requested: .automatic), .ean13)
-        XCTAssertEqual(BarcodeFormat.resolved(digitCount: 13, requested: .automatic), .ean13)
-        XCTAssertEqual(BarcodeFormat.resolved(digitCount: 13, requested: .qr), .qr)
+        XCTAssertEqual(BarcodeFormat.resolved(for: "1234567", requested: .automatic), .code128)
+        XCTAssertEqual(BarcodeFormat.resolved(for: "03600029145", requested: .automatic), .upcA)
+        XCTAssertEqual(BarcodeFormat.resolved(for: "690123456789", requested: .automatic), .ean13)
+        XCTAssertEqual(BarcodeFormat.resolved(for: "6901234567892", requested: .automatic), .ean13)
+        XCTAssertEqual(BarcodeFormat.resolved(for: "6901234567892", requested: .qr), .qr)
     }
 
-    func testSanitize() {
-        XCTAssertEqual(BarcodePayloadBuilder.sanitize("69-01 23a45"), "69012345")
-        XCTAssertEqual(BarcodePayloadBuilder.sanitize("") , "")
+    func testAutomaticResolvesText() {
+        XCTAssertEqual(BarcodeFormat.resolved(for: "ORDER-12345", requested: .automatic), .code128)
+        XCTAssertEqual(BarcodeFormat.resolved(for: "订单号 12345", requested: .automatic), .qr)
+        XCTAssertTrue(BarcodePayloadBuilder.make(from: "hello world", requested: .automatic).isValid)
+    }
+
+    func testNumericModesStripNonDigits() {
+        XCTAssertEqual(BarcodePayloadBuilder.sanitize("69-01 23a45", for: .ean13), "69012345")
+        XCTAssertEqual(BarcodePayloadBuilder.sanitize("", for: .upcA), "")
+    }
+
+    func testTextModesKeepText() {
+        XCTAssertEqual(BarcodePayloadBuilder.sanitize("Hello 世界 123", for: .qr), "Hello 世界 123")
+        XCTAssertEqual(BarcodePayloadBuilder.sanitize("INV-2026\n", for: .code128), "INV-2026")
+    }
+
+    func testQRAndCode128AcceptText() {
+        let qr = BarcodePayloadBuilder.make(from: "https://example.com/?q=1", requested: .qr)
+        XCTAssertEqual(qr.format, .qr)
+        XCTAssertTrue(qr.isValid)
+
+        let code = BarcodePayloadBuilder.make(from: "ABC-123-XYZ", requested: .code128)
+        XCTAssertEqual(code.format, .code128)
+        XCTAssertTrue(code.isValid)
+    }
+
+    func testCode128RejectsNonASCII() {
+        let payload = BarcodePayloadBuilder.make(from: "中文内容", requested: .code128)
+        XCTAssertFalse(payload.isValid)
+        XCTAssertNotNil(payload.error)
     }
 
     func testManualEANRejectsShortInput() {
         let payload = BarcodePayloadBuilder.make(from: "12345", requested: .ean13)
         XCTAssertFalse(payload.isValid)
         XCTAssertNotNil(payload.error)
+    }
+
+    func testEANModeStripsPastedText() {
+        let payload = BarcodePayloadBuilder.make(from: "订单690123456789", requested: .ean13)
+        XCTAssertEqual(payload.format, .ean13)
+        XCTAssertEqual(payload.digits, "6901234567892")
+        XCTAssertTrue(payload.isValid)
     }
 
     func testEANModuleStructure() throws {

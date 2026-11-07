@@ -24,6 +24,18 @@ final class VisionRoundTripTests: XCTestCase {
         try assertRoundTrip("123456789012345678901234567890", format: .code128)
     }
 
+    func testCode128TextRoundTrip() throws {
+        try assertRoundTrip("ABC-123-XYZ", format: .code128)
+    }
+
+    func testQRTextRoundTrip() throws {
+        try assertRoundTrip("https://example.com/?q=42", format: .qr)
+    }
+
+    func testQRChineseRoundTrip() throws {
+        try assertRoundTrip("订单号 12345", format: .qr)
+    }
+
     private func assertRoundTrip(_ digits: String, format: BarcodeFormat) throws {
         let payload = BarcodePayloadBuilder.make(from: digits, requested: format)
         XCTAssertTrue(payload.isValid, payload.error ?? "payload invalid")

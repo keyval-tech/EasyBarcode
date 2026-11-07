@@ -77,19 +77,23 @@ final class GlassPanelView: NSView {
         textField.lineBreakMode = .byTruncatingTail
         textField.cell?.wraps = false
         textField.cell?.isScrollable = true
-        textField.placeholderAttributedString = NSAttributedString(
-            string: "输入数字…",
-            attributes: [
-                .font: NSFont.monospacedDigitSystemFont(ofSize: 20, weight: .regular),
-                .foregroundColor: NSColor.placeholderTextColor
-            ]
-        )
+        updatePlaceholder(for: .automatic)
         content.addSubview(textField)
     }
 
     private func configureFormatButton() {
         formatButton.translatesAutoresizingMaskIntoConstraints = false
         content.addSubview(formatButton)
+    }
+
+    func updatePlaceholder(for format: BarcodeFormat) {
+        textField.placeholderAttributedString = NSAttributedString(
+            string: format.inputPlaceholder,
+            attributes: [
+                .font: NSFont.monospacedDigitSystemFont(ofSize: 20, weight: .regular),
+                .foregroundColor: NSColor.placeholderTextColor
+            ]
+        )
     }
 
     private func configureStatusLabel() {
@@ -247,6 +251,7 @@ final class GlassPanelView: NSView {
 
     func setFormat(_ format: BarcodeFormat) {
         formatButton.setFormat(format)
+        updatePlaceholder(for: format)
     }
 
     func update(payload: BarcodePayload?, image: CGImage?, status: String, warning: Bool, placeholder: String) {

@@ -4,8 +4,9 @@ import Foundation
 public struct BarcodePayload: Sendable, Equatable {
     /// The raw text the user typed.
     public let input: String
-    /// The digits that should actually be encoded. For EAN-13/UPC-A this
-    /// includes the (possibly corrected) check digit.
+    /// The content that should actually be encoded. For EAN-13/UPC-A this is
+    /// the digit string including the (possibly corrected) check digit; for
+    /// Code 128 / QR it is the user's text.
     public let digits: String
     /// The symbology that will be used.
     public let format: BarcodeFormat
@@ -32,14 +33,22 @@ public struct BarcodePayload: Sendable, Equatable {
 }
 
 public enum BarcodePayloadBuilder {
-    /// Longest input we accept. Comfortably above any real-world retail code
-    /// while keeping Code 128 / QR generation fast.
-    public static let maxDigits = 64
+    /// Cap for numeric input (comfortably above any retail code).
+    public static let maxNumericDigits = 64
+    /// Cap for text input; keeps QR/Code 128 rendering fast.
+    public static let maxTextLength = 256
 
-    /// Strips everything that is not an ASCII digit and caps the length.
-    public static func sanitize(_ raw: String) -> String {
-        let digits = raw.filter { $0.isASCII && $0.isNumber }
-        return String(digits.prefix(maxDigits))
+    /// Mode-aware input cleaning: numeric symbologies strip everything that
+    /// is not a digit, text symbologies keep the text (minus newlines).
+    public static func sanitize(_ raw: String, for format: BarcodeFormat) -> String {
+        switch format {
+        case .ean13, .upcA:
+            let digits = raw.filter { $0.isASCII && $0.isNumber }
+            return String(digits.prefix(maxNumericDigits))
+        case .automatic, .code128, .qr:
+            let text = raw.filter { !$0.isNewline }
+            return String(text.prefix(maxTextLength))
+        }
     }
 
     /// EAN-13 check digit over a 12-digit body.
@@ -58,24 +67,32 @@ public enum BarcodePayloadBuilder {
     }
 
     public static func make(from rawInput: String, requested: BarcodeFormat) -> BarcodePayload {
-        let digits = sanitize(rawInput)
-        let format = BarcodeFormat.resolved(digitCount: digits.count, requested: requested)
+        let text = sanitize(rawInput, for: requested)
+        let format = BarcodeFormat.resolved(for: text, requested: requested)
 
-        guard !digits.isEmpty else {
+        guard !text.isEmpty else {
             return BarcodePayload(input: rawInput, digits: "", format: format)
         }
 
         switch format {
         case .ean13:
-            return makeEAN13(input: rawInput, digits: digits)
+            return makeEAN13(input: rawInput, digits: text)
         case .upcA:
-            return makeUPCA(input: rawInput, digits: digits)
+            return makeUPCA(input: rawInput, digits: text)
         case .code128:
-            return BarcodePayload(input: rawInput, digits: digits, format: .code128)
+            guard text.canBeConverted(to: .ascii) else {
+                return BarcodePayload(
+                    input: rawInput,
+                    digits: text,
+                    format: .code128,
+                    error: "Code 128 仅支持英文、数字与符号，中文请改用 QR"
+                )
+            }
+            return BarcodePayload(input: rawInput, digits: text, format: .code128)
         case .qr:
-            return BarcodePayload(input: rawInput, digits: digits, format: .qr)
+            return BarcodePayload(input: rawInput, digits: text, format: .qr)
         case .automatic:
-            return BarcodePayload(input: rawInput, digits: digits, format: .code128)
+            return BarcodePayload(input: rawInput, digits: text, format: .code128)
         }
     }
 

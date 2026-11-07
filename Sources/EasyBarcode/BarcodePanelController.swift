@@ -14,8 +14,7 @@ final class BarcodePanelController: NSObject, NSTextFieldDelegate {
     var selectedFormat: BarcodeFormat {
         get { view.selectedFormat }
         set {
-            view.setFormat(newValue)
-            showInputState()
+            applyFormat(newValue)
         }
     }
 
@@ -82,7 +81,7 @@ final class BarcodePanelController: NSObject, NSTextFieldDelegate {
 
     /// Debug/verification helper used by `--demo`.
     func setText(_ text: String) {
-        let clean = BarcodePayloadBuilder.sanitize(text)
+        let clean = BarcodePayloadBuilder.sanitize(text, for: view.selectedFormat)
         if let editor = view.textField.currentEditor() as? NSTextView {
             editor.string = clean
             editor.selectedRange = NSRange(location: (clean as NSString).length, length: 0)
@@ -92,6 +91,18 @@ final class BarcodePanelController: NSObject, NSTextFieldDelegate {
     }
 
     // MARK: - Generate
+
+    /// Switching modes re-applies the mode's input restriction to whatever
+    /// is currently in the field (e.g. text typed for QR is stripped to its
+    /// digits when the user moves to EAN-13).
+    private func applyFormat(_ format: BarcodeFormat) {
+        view.setFormat(format)
+        view.textField.stringValue = BarcodePayloadBuilder.sanitize(
+            view.textField.stringValue,
+            for: format
+        )
+        showInputState()
+    }
 
     /// Shows the resolved format and any validation message without drawing a
     /// barcode. Generation only happens on Return / history selection.
@@ -114,7 +125,7 @@ final class BarcodePanelController: NSObject, NSTextFieldDelegate {
                 image: nil,
                 status: "",
                 warning: false,
-                placeholder: "输入数字，按 ⏎ 生成条码"
+                placeholder: "输入内容，按 ⏎ 生成条码"
             )
         } else if let error = result.error {
             view.update(
@@ -159,7 +170,7 @@ final class BarcodePanelController: NSObject, NSTextFieldDelegate {
         }
 
         generatedPayload = result
-        lastGeneratedInput = BarcodePayloadBuilder.sanitize(raw)
+        lastGeneratedInput = BarcodePayloadBuilder.sanitize(raw, for: view.selectedFormat)
         lastGeneratedFormat = view.selectedFormat
         view.update(
             payload: result,
@@ -185,7 +196,8 @@ final class BarcodePanelController: NSObject, NSTextFieldDelegate {
 
     private func statusText(for payload: BarcodePayload) -> String {
         guard payload.isValid else { return payload.error ?? "" }
-        var parts = [payload.format.displayName, "\(payload.digits.count) 位"]
+        let unit = payload.format.acceptsArbitraryText ? "字符" : "位"
+        var parts = [payload.format.displayName, "\(payload.digits.count) \(unit)"]
         if (payload.format == .ean13 || payload.format == .upcA), let last = payload.digits.last {
             parts.append("校验位 \(last)")
         }
@@ -284,8 +296,8 @@ final class BarcodePanelController: NSObject, NSTextFieldDelegate {
         view.textField.target = self
         view.textField.action = #selector(generateAndCopy)
 
-        view.formatButton.onSelect = { [weak self] _ in
-            self?.showInputState()
+        view.formatButton.onSelect = { [weak self] format in
+            self?.applyFormat(format)
         }
 
         view.historyButton.target = self
@@ -324,7 +336,7 @@ final class BarcodePanelController: NSObject, NSTextFieldDelegate {
 
     func controlTextDidChange(_ obj: Notification) {
         let raw = view.textField.stringValue
-        let clean = BarcodePayloadBuilder.sanitize(raw)
+        let clean = BarcodePayloadBuilder.sanitize(raw, for: view.selectedFormat)
 
         if clean != raw {
             if let editor = view.textField.currentEditor() as? NSTextView {
@@ -337,7 +349,7 @@ final class BarcodePanelController: NSObject, NSTextFieldDelegate {
             }
         }
 
-        let current = BarcodePayloadBuilder.sanitize(view.textField.stringValue)
+        let current = BarcodePayloadBuilder.sanitize(view.textField.stringValue, for: view.selectedFormat)
         if generatedPayload != nil,
            current == lastGeneratedInput,
            view.selectedFormat == lastGeneratedFormat {

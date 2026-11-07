@@ -228,7 +228,7 @@ public enum BarcodeImageRenderer {
 
     private static func renderQR(_ digits: String, targetWidth: Int) -> CGImage? {
         guard let filter = CIFilter(name: "CIQRCodeGenerator") else { return nil }
-        filter.setValue(digits.data(using: .ascii), forKey: "inputMessage")
+        filter.setValue(digits.data(using: .utf8), forKey: "inputMessage")
         filter.setValue("M", forKey: "inputCorrectionLevel")
 
         guard let output = filter.outputImage,
