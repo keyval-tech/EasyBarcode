@@ -35,6 +35,9 @@ final class BarcodePanelController: NSObject, NSTextFieldDelegate {
         window.titleVisibility = .visible
         window.tabbingMode = .disallowed
         window.contentMinSize = NSSize(width: Theme.minWindowWidth, height: Theme.minWindowHeight)
+        // Utility app: windows must follow whatever Space is active, or a
+        // hotkey summon on another Space finds nothing on screen.
+        window.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary]
 
         self.window = window
         view = GlassPanelView(frame: contentRect)

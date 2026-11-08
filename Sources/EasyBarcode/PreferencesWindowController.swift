@@ -5,8 +5,8 @@ final class PreferencesWindowController: NSWindowController {
     private let mainRecorder: HotKeyRecorderView
     private let historyRecorder: HotKeyRecorderView
     private let loginCheckbox: NSButton
-    private let glassCheckbox: NSButton
-    private var appearancePopup: NSPopUpButton!
+    private let glassCheckbox = NSButton(checkboxWithTitle: "主窗口使用玻璃质感（Liquid Glass）", target: nil, action: nil)
+    private let appearancePopup = NSPopUpButton()
     private let imagesPathLabel = NSTextField(labelWithString: "")
 
     var onHotKeyChange: ((HotKeySlot, HotKeyConfig) -> Bool)?
@@ -15,9 +15,6 @@ final class PreferencesWindowController: NSWindowController {
         mainRecorder = HotKeyRecorderView(config: mainHotKeyConfig)
         historyRecorder = HotKeyRecorderView(config: historyHotKeyConfig)
         loginCheckbox = NSButton(checkboxWithTitle: "登录时自动启动 EasyBarcode", target: nil, action: nil)
-        glassCheckbox = NSButton(checkboxWithTitle: "主窗口使用玻璃质感（Liquid Glass）", target: nil, action: nil)
-        glassCheckbox.font = .systemFont(ofSize: 13)
-        glassCheckbox.state = AppSettings.useGlass ? .on : .off
 
         let window = NSWindow(
             contentRect: NSRect(x: 0, y: 0, width: 440, height: 430),
@@ -96,21 +93,15 @@ final class PreferencesWindowController: NSWindowController {
         appearanceLabel.textColor = .secondaryLabelColor
         appearanceLabel.widthAnchor.constraint(equalToConstant: 64).isActive = true
 
-        appearancePopup = NSPopUpButton()
-        appearancePopup.controlSize = .small
-        appearancePopup.font = .systemFont(ofSize: 11)
-        for mode in AppSettings.AppearanceMode.allCases {
-            appearancePopup.addItem(withTitle: mode.title)
-            appearancePopup.lastItem?.representedObject = mode.rawValue
-        }
-        appearancePopup.selectItem(at: AppSettings.AppearanceMode.allCases.firstIndex(of: AppSettings.appearanceMode) ?? 0)
-        appearancePopup.target = self
-        appearancePopup.action = #selector(appearancePopupChanged)
-
         let appearanceRow = NSStackView(views: [appearanceLabel, appearancePopup])
         appearanceRow.orientation = .horizontal
         appearanceRow.alignment = .centerY
         appearanceRow.spacing = 10
+
+        glassCheckbox.font = .systemFont(ofSize: 13)
+        glassCheckbox.state = AppSettings.useGlass ? .on : .off
+        glassCheckbox.target = self
+        glassCheckbox.action = #selector(toggleGlass)
 
         let imagesTitle = NSTextField(labelWithString: "历史图片目录")
         imagesTitle.font = .systemFont(ofSize: 13, weight: .semibold)
@@ -144,8 +135,6 @@ final class PreferencesWindowController: NSWindowController {
         imagesHint.font = .systemFont(ofSize: 11)
         imagesHint.textColor = .secondaryLabelColor
 
-        glassCheckbox.target = self
-        glassCheckbox.action = #selector(toggleGlass)
         loginCheckbox.target = self
         loginCheckbox.action = #selector(toggleLogin)
         loginCheckbox.font = .systemFont(ofSize: 13)
@@ -163,6 +152,7 @@ final class PreferencesWindowController: NSWindowController {
             shortcutHint,
             appearanceTitle,
             appearanceRow,
+            glassCheckbox,
             imagesTitle,
             imagesRow,
             imagesHint,
@@ -181,7 +171,6 @@ final class PreferencesWindowController: NSWindowController {
         stack.setCustomSpacing(18, after: shortcutHint)
         stack.setCustomSpacing(8, after: appearanceTitle)
         stack.setCustomSpacing(16, after: appearanceRow)
-        stack.setCustomSpacing(18, after: glassCheckbox)
         stack.setCustomSpacing(8, after: imagesTitle)
         stack.setCustomSpacing(6, after: imagesRow)
         stack.setCustomSpacing(18, after: imagesHint)

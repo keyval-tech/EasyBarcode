@@ -1,6 +1,7 @@
 import AppKit
 import BarcodeKit
 
+
 final class AppDelegate: NSObject, NSApplicationDelegate {
     private let hotKey = GlobalHotKey.shared
     private var mainHotKeyConfig: HotKeyConfig = .default
@@ -295,5 +296,17 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     @objc private func openPreferencesFromMenu(_ sender: Any?) {
         showPreferences()
+    }
+}
+
+extension String {
+    func append(to path: String) throws {
+        if let handle = FileHandle(forWritingAtPath: path) {
+            handle.seekToEndOfFile()
+            handle.write(Data(self.utf8))
+            handle.closeFile()
+        } else {
+            try self.write(toFile: path, atomically: true, encoding: .utf8)
+        }
     }
 }

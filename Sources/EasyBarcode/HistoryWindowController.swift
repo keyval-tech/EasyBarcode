@@ -42,6 +42,7 @@ final class HistoryWindowController: NSWindowController, NSCollectionViewDataSou
         window.isReleasedWhenClosed = false
         window.tabbingMode = .disallowed
         window.contentMinSize = NSSize(width: 290, height: 400)
+        window.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary]
         window.delegate = self
 
         let restored = window.setFrameUsingName("EasyBarcodeHistoryWindowV6")
