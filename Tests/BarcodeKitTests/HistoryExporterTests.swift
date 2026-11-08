@@ -98,8 +98,16 @@ final class HistoryExporterTests: XCTestCase {
 
         let markdown = try String(contentsOf: url, encoding: .utf8)
         XCTAssertTrue(markdown.contains("# EasyBarcode 历史记录"))
+        XCTAssertTrue(markdown.contains("## 条目"))
+        XCTAssertTrue(markdown.contains("## 导出信息"))
+        // Metadata section comes after the entries.
+        XCTAssertLessThan(
+            markdown.range(of: "## 条目")!.upperBound,
+            markdown.range(of: "- 导出时间：")!.lowerBound
+        )
+        XCTAssertTrue(markdown.contains("- 共 3 条"))
         XCTAssertTrue(markdown.contains("- `6901234567892`"))
-        XCTAssertTrue(markdown.contains("  ![](EasyBarcode历史-2026-11-08图片/01.png)"))
+        XCTAssertTrue(markdown.contains("  <img src=\"EasyBarcode历史-2026-11-08图片/01.png\" width=\"180\">"))
         XCTAssertTrue(markdown.contains("  备注：样品 \\| 给客户"))
         XCTAssertTrue(markdown.contains("  格式：EAN-13"))
         XCTAssertTrue(markdown.contains("  生成时间：2026-11-08 09:24"))

@@ -71,9 +71,6 @@ public enum HistoryExporter {
         let imagesDirectory = url.deletingLastPathComponent()
             .appendingPathComponent(imagesFolderName, isDirectory: true)
 
-        if rows.contains(where: { $0.pngData != nil }) {
-            try FileManager.default.createDirectory(at: imagesDirectory, withIntermediateDirectories: true)
-        }
 
         let exportedAt = DateFormatter.localizedString(
             from: Date(),
@@ -81,19 +78,23 @@ public enum HistoryExporter {
             timeStyle: .short
         )
 
+        let hasImages = rows.contains(where: { $0.pngData != nil })
+        if hasImages {
+            try FileManager.default.createDirectory(at: imagesDirectory, withIntermediateDirectories: true)
+        }
+
         var lines: [String] = [
             "# EasyBarcode 历史记录",
             "",
-            "- 导出时间：\(exportedAt)",
-            "- 共 \(rows.count) 条",
-            "- 图片存放在同级文件夹「\(imagesFolderName)」，移动本文件时请一并移动。",
+            "## 条目",
             ""
         ]
 
         for (index, row) in rows.enumerated() {
             let imageName = String(format: "%02d", index + 1) + ".png"
             // Continuation lines are indented so every block below stays
-            // attached to its list item when rendered.
+            // attached to its list item when rendered. Images are limited
+            // via an <img width> attribute; plain Markdown cannot scale.
             lines.append("- \(escapeCodeText(row.text))")
             if let pngData = row.pngData {
                 try pngData.write(
@@ -101,7 +102,7 @@ public enum HistoryExporter {
                     options: .atomic
                 )
                 lines.append("")
-                lines.append("  ![](\(imagesFolderName)/\(imageName))")
+                lines.append("  <img src=\"\(imagesFolderName)/\(imageName)\" width=\"180\">")
             }
             lines.append("")
             lines.append("  备注：\(escapeMarkdown(row.note ?? "—"))")
@@ -111,6 +112,15 @@ public enum HistoryExporter {
             lines.append("  生成时间：\(escapeMarkdown(row.dateString))")
             lines.append("")
         }
+
+        lines.append("## 导出信息")
+        lines.append("")
+        lines.append("- 导出时间：\(exportedAt)")
+        lines.append("- 共 \(rows.count) 条")
+        if rows.contains(where: { $0.pngData != nil }) {
+            lines.append("- 图片存放在同级文件夹「\(imagesFolderName)」，移动本文件时请一并移动。")
+        }
+        lines.append("")
 
         try lines.joined(separator: "\n").write(to: url, atomically: true, encoding: .utf8)
         return rows.count
