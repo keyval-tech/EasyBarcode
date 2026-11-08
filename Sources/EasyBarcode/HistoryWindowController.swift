@@ -84,6 +84,9 @@ final class HistoryWindowController: NSWindowController, NSCollectionViewDataSou
         content.onLayout = { [weak self] in
             self?.updateItemSize()
         }
+        content.onAppearanceChange = { [weak self] in
+            self?.rebuildTabStrip()
+        }
         content.exportButton.target = self
         content.exportButton.action = #selector(exportHistory)
         content.exportButton.isEnabled = false
@@ -216,6 +219,10 @@ final class HistoryWindowController: NSWindowController, NSCollectionViewDataSou
 
     func windowDidResize(_ notification: Notification) {
         updateItemSize()
+    }
+
+    @objc private func appearanceChanged() {
+        rebuildTabStrip()
     }
 
     private func updateItemSize() {
@@ -582,6 +589,7 @@ final class HistoryContentView: NSView {
     let emptyLabel = NSTextField(labelWithString: "还没有历史记录")
     let emptyHint = NSTextField(labelWithString: "生成条码后会出现在这里")
     var onLayout: (() -> Void)?
+    var onAppearanceChange: (() -> Void)?
 
     override init(frame frameRect: NSRect) {
         super.init(frame: frameRect)
@@ -652,6 +660,11 @@ final class HistoryContentView: NSView {
 
     required init?(coder: NSCoder) {
         fatalError("init(coder:) has not been implemented")
+    }
+
+    override func viewDidChangeEffectiveAppearance() {
+        super.viewDidChangeEffectiveAppearance()
+        onAppearanceChange?()
     }
 
     override func layout() {

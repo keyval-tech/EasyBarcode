@@ -101,8 +101,8 @@ final class HistoryItem: NSCollectionViewItem {
         tagButton.setAccessibilityLabel("标记到 Tab")
         tagButton.translatesAutoresizingMaskIntoConstraints = false
 
-        cardView.addSubview(tagButton)
         cardView.addSubview(imageContainer)
+        cardView.addSubview(tagButton)
         cardView.addSubview(digitsLabel)
         cardView.addSubview(metaLabel)
         cardView.addSubview(noteEditor)

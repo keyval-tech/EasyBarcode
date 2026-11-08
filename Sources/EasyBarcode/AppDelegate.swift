@@ -26,6 +26,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
         configureMainMenu()
         configureHotKey()
+        AppSettings.applyAppearance()
+        NotificationCenter.default.addObserver(
+            self,
+            selector: #selector(appearanceSettingChanged),
+            name: AppSettings.appearanceChangedNotification,
+            object: nil
+        )
 
         let arguments = CommandLine.arguments
         let shouldShow = arguments.contains("--show")
@@ -55,6 +62,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     // MARK: - Hot key
+
+    @objc private func appearanceSettingChanged() {
+        AppSettings.applyAppearance()
+    }
 
     private var historyKeyMonitor: Any?
 

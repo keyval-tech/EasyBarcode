@@ -6,6 +6,7 @@ final class PreferencesWindowController: NSWindowController {
     private let historyRecorder: HotKeyRecorderView
     private let loginCheckbox: NSButton
     private let glassCheckbox: NSButton
+    private var appearancePopup: NSPopUpButton!
     private let imagesPathLabel = NSTextField(labelWithString: "")
 
     var onHotKeyChange: ((HotKeySlot, HotKeyConfig) -> Bool)?
@@ -90,6 +91,27 @@ final class PreferencesWindowController: NSWindowController {
         let appearanceTitle = NSTextField(labelWithString: "外观")
         appearanceTitle.font = .systemFont(ofSize: 13, weight: .semibold)
 
+        let appearanceLabel = NSTextField(labelWithString: "界面外观")
+        appearanceLabel.font = .systemFont(ofSize: 11)
+        appearanceLabel.textColor = .secondaryLabelColor
+        appearanceLabel.widthAnchor.constraint(equalToConstant: 64).isActive = true
+
+        appearancePopup = NSPopUpButton()
+        appearancePopup.controlSize = .small
+        appearancePopup.font = .systemFont(ofSize: 11)
+        for mode in AppSettings.AppearanceMode.allCases {
+            appearancePopup.addItem(withTitle: mode.title)
+            appearancePopup.lastItem?.representedObject = mode.rawValue
+        }
+        appearancePopup.selectItem(at: AppSettings.AppearanceMode.allCases.firstIndex(of: AppSettings.appearanceMode) ?? 0)
+        appearancePopup.target = self
+        appearancePopup.action = #selector(appearancePopupChanged)
+
+        let appearanceRow = NSStackView(views: [appearanceLabel, appearancePopup])
+        appearanceRow.orientation = .horizontal
+        appearanceRow.alignment = .centerY
+        appearanceRow.spacing = 10
+
         let imagesTitle = NSTextField(labelWithString: "历史图片目录")
         imagesTitle.font = .systemFont(ofSize: 13, weight: .semibold)
 
@@ -140,7 +162,7 @@ final class PreferencesWindowController: NSWindowController {
             appHint,
             shortcutHint,
             appearanceTitle,
-            glassCheckbox,
+            appearanceRow,
             imagesTitle,
             imagesRow,
             imagesHint,
@@ -158,7 +180,8 @@ final class PreferencesWindowController: NSWindowController {
         stack.setCustomSpacing(10, after: appHint)
         stack.setCustomSpacing(18, after: shortcutHint)
         stack.setCustomSpacing(8, after: appearanceTitle)
-        stack.setCustomSpacing(16, after: glassCheckbox)
+        stack.setCustomSpacing(16, after: appearanceRow)
+        stack.setCustomSpacing(18, after: glassCheckbox)
         stack.setCustomSpacing(8, after: imagesTitle)
         stack.setCustomSpacing(6, after: imagesRow)
         stack.setCustomSpacing(18, after: imagesHint)
@@ -199,6 +222,14 @@ final class PreferencesWindowController: NSWindowController {
     private func refreshImagesDirectory() {
         imagesPathLabel.stringValue = HistoryStore.shared.imagesDirectoryDisplayPath
         imagesPathLabel.toolTip = HistoryStore.shared.imagesDirectory.path
+    }
+
+    @objc private func appearancePopupChanged() {
+        let index = appearancePopup.indexOfSelectedItem
+        let modes = AppSettings.AppearanceMode.allCases
+        guard modes.indices.contains(index) else { return }
+        AppSettings.appearanceMode = modes[index]
+        AppSettings.applyAppearance()
     }
 
     @objc private func toggleGlass() {
