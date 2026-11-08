@@ -272,6 +272,60 @@ public enum HistoryExporter {
             .replacingOccurrences(of: "\"", with: "&quot;")
     }
 
+    // MARK: - ZIP
+
+    /// Writes a .zip containing every entry's barcode PNG, named
+    /// `{格式}_{code}.png` with filename-illegal characters converted.
+    /// Returns the number of image files written.
+    @discardableResult
+    public static func exportZIP(rows: [HistoryExportRow], to url: URL) throws -> Int {
+        try? FileManager.default.removeItem(at: url)
+        var usedNames: Set<String> = []
+        var written = 0
+
+        let archive = try Archive(url: url, accessMode: .create)
+        for row in rows where row.pngData != nil {
+            let base = sanitizeFileName("\(row.formatName)_\(row.text)")
+            let name = uniqueName(base, used: &usedNames)
+            try addData(
+                archive: archive,
+                name: "\(name).png",
+                data: row.pngData!
+            )
+            written += 1
+        }
+        return written
+    }
+
+    /// Converts filename-illegal characters to `_`, trims edges and caps the
+    /// length. Covers the Windows-forbidden set in addition to the POSIX one
+    /// so zips stay portable.
+    static func sanitizeFileName(_ text: String) -> String {
+        let forbidden: Set<Character> = ["/", "\\", ":", "*", "?", "\"", "<", ">", "|"]
+        var converted = text.map { character -> String in
+            if forbidden.contains(character)
+                || character.unicodeScalars.contains(where: { $0.value < 32 }) {
+                return "_"
+            }
+            return String(character)
+        }.joined()
+        converted = converted.trimmingCharacters(in: CharacterSet(charactersIn: " ."))
+        let capped = String(converted.prefix(80))
+        return capped.isEmpty ? "未命名" : capped
+    }
+
+    /// Returns `base`, or `base-2`, `base-3` … on collision, recording usage.
+    static func uniqueName(_ base: String, used: inout Set<String>) -> String {
+        var candidate = base
+        var suffix = 2
+        while used.contains(candidate) {
+            candidate = "\(base)-\(suffix)"
+            suffix += 1
+        }
+        used.insert(candidate)
+        return candidate
+    }
+
     // MARK: - Markdown
 
     /// Writes a Markdown document mirroring the DOCX layout: 条目 section with
@@ -303,19 +357,21 @@ public enum HistoryExporter {
             ""
         ]
 
-        for (index, row) in rows.enumerated() {
-            let imageName = String(format: "%02d", index + 1) + ".png"
+        var usedImageNames: Set<String> = []
+        for row in rows {
             // Continuation lines are indented so every block below stays
             // attached to its list item when rendered. Images are limited
             // via an <img width> attribute; plain Markdown cannot scale.
             lines.append("- \(escapeCodeText(row.text))")
             if let pngData = row.pngData {
+                let base = sanitizeFileName("\(row.formatName)_\(row.text)")
+                let imageName = uniqueName(base, used: &usedImageNames)
                 try pngData.write(
-                    to: imagesDirectory.appendingPathComponent(imageName),
+                    to: imagesDirectory.appendingPathComponent("\(imageName).png"),
                     options: .atomic
                 )
                 lines.append("")
-                lines.append("  <img src=\"\(imagesFolderName)/\(imageName)\" width=\"\(Int(imageDisplayWidth))\">")
+                lines.append("  <img src=\"\(imagesFolderName)/\(imageName).png\" width=\"\(Int(imageDisplayWidth))\">")
             }
             lines.append("")
             lines.append("  备注：\(escapeMarkdown(row.note ?? "—"))")

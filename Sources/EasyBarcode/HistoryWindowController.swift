@@ -277,7 +277,8 @@ final class HistoryWindowController: NSWindowController, NSCollectionViewDataSou
             ("导出为 Excel（.xlsx）…", "xlsx"),
             ("导出为 Word（.docx）…", "docx"),
             ("导出为 Markdown（.md）…", "md"),
-            ("导出为 HTML（.html）…", "html")
+            ("导出为 HTML（.html）…", "html"),
+            ("导出为 ZIP 图片包（.zip）…", "zip")
         ] {
             let item = NSMenuItem(title: title, action: #selector(exportAs(_:)), keyEquivalent: "")
             item.target = self
@@ -335,10 +336,13 @@ final class HistoryWindowController: NSWindowController, NSCollectionViewDataSou
                     count = try HistoryExporter.exportDOCX(rows: rows, to: url)
                 case "html", "htm":
                     count = try HistoryExporter.exportHTML(rows: rows, to: url)
+                case "zip":
+                    count = try HistoryExporter.exportZIP(rows: rows, to: url)
                 default:
                     count = try await HistoryExporter.exportXLSX(rows: rows, to: url)
                 }
-                self.flashStatus("已导出 \(count) 条")
+                let unit = url.pathExtension.lowercased() == "zip" ? "张图片" : "条"
+                self.flashStatus("已导出 \(count) \(unit)")
             } catch {
                 let alert = NSAlert(error: error)
                 alert.runModal()

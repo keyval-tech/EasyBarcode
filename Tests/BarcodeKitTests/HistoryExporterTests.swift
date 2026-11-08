@@ -107,7 +107,7 @@ final class HistoryExporterTests: XCTestCase {
         )
         XCTAssertTrue(markdown.contains("- 共 3 条"))
         XCTAssertTrue(markdown.contains("- `6901234567892`"))
-        XCTAssertTrue(markdown.contains("  <img src=\"EasyBarcode历史-2026-11-08图片/01.png\" width=\"180\">"))
+        XCTAssertTrue(markdown.contains("  <img src=\"EasyBarcode历史-2026-11-08图片/EAN-13_6901234567892.png\" width=\"180\">"))
         XCTAssertTrue(markdown.contains("  备注：样品 \\| 给客户"))
         XCTAssertTrue(markdown.contains("  格式：EAN-13"))
         XCTAssertTrue(markdown.contains("  生成时间：2026-11-08 09:24"))
@@ -116,9 +116,41 @@ final class HistoryExporterTests: XCTestCase {
         XCTAssertFalse(markdown.contains("| # |"))
 
         let imagesFolder = base.appendingPathComponent("EasyBarcode历史-2026-11-08图片", isDirectory: true)
-        XCTAssertTrue(FileManager.default.fileExists(atPath: imagesFolder.appendingPathComponent("01.png").path))
-        XCTAssertTrue(FileManager.default.fileExists(atPath: imagesFolder.appendingPathComponent("02.png").path))
-        XCTAssertFalse(FileManager.default.fileExists(atPath: imagesFolder.appendingPathComponent("03.png").path))
+        XCTAssertTrue(FileManager.default.fileExists(atPath: imagesFolder.appendingPathComponent("EAN-13_6901234567892.png").path))
+        XCTAssertTrue(FileManager.default.fileExists(atPath: imagesFolder.appendingPathComponent("Code 128_ORDER-12345.png").path))
+        XCTAssertFalse(FileManager.default.fileExists(atPath: imagesFolder.appendingPathComponent("QR_订单号 9527.png").path))
+    }
+
+    @MainActor
+    func testZIPExportBundlesImagesWithSanitizedNames() throws {
+        let url = FileManager.default.temporaryDirectory
+            .appendingPathComponent("eb-export-\(UUID().uuidString).zip")
+        defer { try? FileManager.default.removeItem(at: url) }
+
+        var rows = try makeRows()
+        // A QR payload with filename-illegal characters.
+        rows[2] = HistoryExportRow(
+            text: "bad/name:here",
+            formatName: "QR",
+            dateString: "2026-11-08 09:40",
+            note: nil,
+            pngData: try makePNG(width: 60, height: 60)
+        )
+
+        let count = try HistoryExporter.exportZIP(rows: rows, to: url)
+        XCTAssertEqual(count, 3)
+
+        try validateWithProcess(
+            executable: "/usr/bin/unzip",
+            arguments: ["-t", url.path],
+            expectOutput: "No errors detected"
+        )
+
+        let listing = try zipListing(of: url)
+        XCTAssertTrue(listing.contains("EAN-13_6901234567892.png"))
+        XCTAssertTrue(listing.contains("Code 128_ORDER-12345.png"))
+        XCTAssertTrue(listing.contains("QR_bad_name_here.png"))
+        XCTAssertFalse(listing.contains(".docx"))
     }
 
     @MainActor
@@ -201,6 +233,19 @@ final class HistoryExporterTests: XCTestCase {
         if let expectOutput {
             XCTAssertTrue(output.contains(expectOutput), "expected \(expectOutput), got:\n\(output)")
         }
+    }
+
+    private func zipListing(of url: URL) throws -> String {
+        let process = Process()
+        process.executableURL = URL(fileURLWithPath: "/usr/bin/unzip")
+        process.arguments = ["-l", url.path]
+        let pipe = Pipe()
+        process.standardOutput = pipe
+        process.standardError = pipe
+        try process.run()
+        process.waitUntilExit()
+        XCTAssertEqual(process.terminationStatus, 0, "unzip -l failed")
+        return String(data: pipe.fileHandleForReading.readDataToEndOfFile(), encoding: .utf8) ?? ""
     }
 
     private func tryUnzip(of url: URL, entry: String) throws -> String {
