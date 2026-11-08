@@ -273,7 +273,11 @@ final class HistoryWindowController: NSWindowController, NSCollectionViewDataSou
         guard let window else { return }
 
         let menu = NSMenu()
-        for (title, extensionName) in [("导出为 Excel（.xlsx）…", "xlsx"), ("导出为 Markdown（.md）…", "md")] {
+        for (title, extensionName) in [
+            ("导出为 Excel（.xlsx）…", "xlsx"),
+            ("导出为 Word（.docx）…", "docx"),
+            ("导出为 Markdown（.md）…", "md")
+        ] {
             let item = NSMenuItem(title: title, action: #selector(exportAs(_:)), keyEquivalent: "")
             item.target = self
             item.representedObject = extensionName
@@ -323,9 +327,12 @@ final class HistoryWindowController: NSWindowController, NSCollectionViewDataSou
             do {
                 let count: Int
                 let ext = url.pathExtension.lowercased()
-                if ext == "md" || ext == "markdown" {
+                switch ext {
+                case "md", "markdown":
                     count = try HistoryExporter.exportMarkdown(rows: rows, to: url)
-                } else {
+                case "docx":
+                    count = try HistoryExporter.exportDOCX(rows: rows, to: url)
+                default:
                     count = try await HistoryExporter.exportXLSX(rows: rows, to: url)
                 }
                 self.flashStatus("已导出 \(count) 条")

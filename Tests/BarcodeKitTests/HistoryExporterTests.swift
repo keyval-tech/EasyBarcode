@@ -121,6 +121,41 @@ final class HistoryExporterTests: XCTestCase {
         XCTAssertFalse(FileManager.default.fileExists(atPath: imagesFolder.appendingPathComponent("03.png").path))
     }
 
+    @MainActor
+    func testDOCXExportProducesDocumentWithInlineImages() throws {
+        let url = FileManager.default.temporaryDirectory
+            .appendingPathComponent("eb-export-\(UUID().uuidString).docx")
+        defer { try? FileManager.default.removeItem(at: url) }
+
+        let count = try HistoryExporter.exportDOCX(rows: try makeRows(), to: url)
+        XCTAssertEqual(count, 3)
+        XCTAssertGreaterThan(try Data(contentsOf: url).count, 1000)
+
+        try validateWithProcess(
+            executable: "/usr/bin/unzip",
+            arguments: ["-t", url.path],
+            expectOutput: "No errors detected"
+        )
+
+        // The document part carries the expected content and exactly two
+        // inline drawings (rows 1 and 2 have images; row 3 does not).
+        let document = try documentXML(of: url)
+        XCTAssertTrue(document.contains("EasyBarcode 历史记录"))
+        XCTAssertTrue(document.contains("条目"))
+        XCTAssertTrue(document.contains("• "))
+        XCTAssertTrue(document.contains("6901234567892"))
+        XCTAssertTrue(document.contains("备注：样品"))
+        XCTAssertTrue(document.contains("导出信息"))
+        XCTAssertEqual(document.components(separatedBy: "<w:drawing>").count - 1, 2)
+
+        let rels = try tryUnzip(of: url, entry: "word/_rels/document.xml.rels")
+        XCTAssertTrue(rels.contains("media/image1.png"))
+        XCTAssertTrue(rels.contains("media/image2.png"))
+        XCTAssertFalse(rels.contains("media/image3.png"))
+
+        try validateWithPythonDocX(at: url)
+    }
+
     // MARK: - Helpers
 
     private func validateWithProcess(
@@ -141,6 +176,53 @@ final class HistoryExporterTests: XCTestCase {
         if let expectOutput {
             XCTAssertTrue(output.contains(expectOutput), "expected \(expectOutput), got:\n\(output)")
         }
+    }
+
+    private func tryUnzip(of url: URL, entry: String) throws -> String {
+        let process = Process()
+        process.executableURL = URL(fileURLWithPath: "/usr/bin/unzip")
+        process.arguments = ["-p", url.path, entry]
+        let pipe = Pipe()
+        process.standardOutput = pipe
+        process.standardError = pipe
+        try process.run()
+        process.waitUntilExit()
+        XCTAssertEqual(process.terminationStatus, 0, "unzip -p failed")
+        return String(data: pipe.fileHandleForReading.readDataToEndOfFile(), encoding: .utf8) ?? ""
+    }
+
+    private func documentXML(of url: URL) throws -> String {
+        try tryUnzip(of: url, entry: "word/document.xml")
+    }
+
+    private func validateWithPythonDocX(at url: URL) throws {
+        let availability = Process()
+        availability.executableURL = URL(fileURLWithPath: "/usr/bin/env")
+        availability.arguments = ["python3", "-c", "import docx"]
+        availability.standardOutput = Pipe()
+        availability.standardError = Pipe()
+        try? availability.run()
+        availability.waitUntilExit()
+        guard availability.terminationStatus == 0 else {
+            throw XCTSkip("python-docx not installed; skipping semantic validation")
+        }
+
+        let script = """
+        import docx
+        doc = docx.Document(r"\(url.path)")
+        texts = [p.text for p in doc.paragraphs]
+        assert "EasyBarcode 历史记录" in texts, texts
+        assert "条目" in texts
+        assert any("6901234567892" in t for t in texts), texts
+        assert len(doc.inline_shapes) == 2, len(doc.inline_shapes)
+        print("PYTHON-DOCX-OK")
+        """
+
+        try validateWithProcess(
+            executable: "/usr/bin/env",
+            arguments: ["python3", "-c", script],
+            expectOutput: "PYTHON-DOCX-OK"
+        )
     }
 
     private func validateWithOpenPyXL(at url: URL) throws {

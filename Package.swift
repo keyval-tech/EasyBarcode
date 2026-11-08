@@ -11,12 +11,16 @@ let package = Package(
         .library(name: "BarcodeKit", targets: ["BarcodeKit"])
     ],
     dependencies: [
-        .package(url: "https://github.com/TheAcharya/XLKit.git", from: "1.1.8")
+        .package(url: "https://github.com/TheAcharya/XLKit.git", from: "1.1.8"),
+        .package(url: "https://github.com/weichsel/ZIPFoundation.git", from: "0.9.20")
     ],
     targets: [
         .target(
             name: "BarcodeKit",
-            dependencies: [.product(name: "XLKit", package: "XLKit")],
+            dependencies: [
+                .product(name: "XLKit", package: "XLKit"),
+                .product(name: "ZIPFoundation", package: "ZIPFoundation")
+            ],
             swiftSettings: [.swiftLanguageMode(.v5)]
         ),
         .executableTarget(

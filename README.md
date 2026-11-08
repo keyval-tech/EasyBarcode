@@ -21,6 +21,7 @@ macOS 26 / 27 上的原生条码生成小工具。常驻菜单栏，按 `⌥B` �
 - **历史图片落盘**：每条历史记录会保存一张 PNG 到历史图片目录（默认 `~/Library/Application Support/EasyBarcode/History`），可在设置中更换目录，也可以一键在 Finder 中打开。
 - **历史导出**：历史窗口底栏「导出」支持两种格式——
   - **xlsx**：五列（# / 内容 / 格式 / 生成时间 / 备注 / 图片），每行把条码 PNG 直接**内嵌到单元格**里（基于 [XLKit](https://github.com/TheAcharya/XLKit)，MIT）
+  - **Word（.docx）**：与 Markdown 同版式——「条目」下每条一个项目符号段（内容 / 内嵌图片 / 备注 / 格式 / 生成时间），文末「导出信息」；图片以内联方式嵌进文档，单文件即可分发
   - **Markdown**：正文「条目」下每条记录一个无序列表项（内容 / 限宽图片 / 备注 / 格式 / 生成时间），文末「导出信息」记录导出时间与条数；图片存入同名文件夹（`EasyBarcode历史-日期图片/`）以相对路径引用，Typora / VS Code / 飞书文档导入即可显示条码缩略图
 - **设置**：菜单栏「设置」里可分别修改全局（主窗口）与应用内（历史记录）快捷键，打开 / 选择 / 恢复历史图片目录，以及登录时启动。
 - **普通窗口**：标准标题栏、红黄绿按钮，可移动、缩放、最小化、关闭；失去焦点不会消失，再次按快捷键显隐。最小尺寸 300 × 335（此时预览图约 230 × 120）。
@@ -82,7 +83,7 @@ App 二进制内置渲染命令，便于脚本或批量生成：
 ## 第三方依赖
 
 - [XLKit](https://github.com/TheAcharya/XLKit)（MIT）— xlsx 生成与图片内嵌
-- [ZIPFoundation](https://github.com/weichsel/ZIPFoundation)、[swift-textfile](https://github.com/orchetect/swift-textfile) — XLKit 的传递依赖
+- [ZIPFoundation](https://github.com/weichsel/ZIPFoundation)（MIT）— docx 打包（原为 XLKit 传递依赖，现为直接依赖）
 
 ## 目录
 
