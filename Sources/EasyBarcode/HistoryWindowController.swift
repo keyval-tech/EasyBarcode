@@ -267,16 +267,33 @@ final class HistoryWindowController: NSWindowController, NSCollectionViewDataSou
         contentView.countLabel.textColor = .secondaryLabelColor
     }
 
+    /// The save panel's built-in format dropdown is unreliable across
+    /// systems, so the export button pops up explicit choices instead.
     @objc private func exportHistory() {
         guard let window else { return }
 
+        let menu = NSMenu()
+        for (title, extensionName) in [("导出为 xlsx…", "xlsx"), ("导出为 Markdown…", "md")] {
+            let item = NSMenuItem(title: title, action: #selector(exportAs(_:)), keyEquivalent: "")
+            item.target = self
+            item.representedObject = extensionName
+            menu.addItem(item)
+        }
+        menu.popUp(
+            positioning: nil,
+            at: NSPoint(x: 0, y: contentView.exportButton.bounds.height + 4),
+            in: contentView.exportButton
+        )
+    }
+
+    @objc private func exportAs(_ sender: NSMenuItem) {
+        guard let window,
+              let extensionName = sender.representedObject as? String else { return }
+
         let panel = NSSavePanel()
-        panel.allowedContentTypes = [
-            UTType(filenameExtension: "xlsx") ?? .data,
-            UTType(filenameExtension: "md") ?? .data
-        ]
+        panel.allowedContentTypes = [UTType(filenameExtension: extensionName) ?? .data]
         let stamp = Self.exportDateFormatter.string(from: Date())
-        panel.nameFieldStringValue = "EasyBarcode历史-\(stamp)"
+        panel.nameFieldStringValue = "EasyBarcode历史-\(stamp).\(extensionName)"
         panel.canCreateDirectories = true
 
         panel.beginSheetModal(for: window) { [weak self] response in
