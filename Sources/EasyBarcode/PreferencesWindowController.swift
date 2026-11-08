@@ -6,7 +6,10 @@ final class PreferencesWindowController: NSWindowController {
     private let historyRecorder: HotKeyRecorderView
     private let loginCheckbox: NSButton
     private let glassCheckbox = NSButton(checkboxWithTitle: "主窗口使用玻璃质感（Liquid Glass）", target: nil, action: nil)
-    private let appearancePopup = NSPopUpButton()
+    private let appearancePopup = NSPopUpButton(
+        frame: NSRect(x: 0, y: 0, width: 110, height: 26),
+        pullsDown: false
+    )
     private let imagesPathLabel = NSTextField(labelWithString: "")
 
     var onHotKeyChange: ((HotKeySlot, HotKeyConfig) -> Bool)?
@@ -92,6 +95,18 @@ final class PreferencesWindowController: NSWindowController {
         appearanceLabel.font = .systemFont(ofSize: 11)
         appearanceLabel.textColor = .secondaryLabelColor
         appearanceLabel.widthAnchor.constraint(equalToConstant: 64).isActive = true
+
+        appearancePopup.controlSize = .small
+        appearancePopup.font = .systemFont(ofSize: 11)
+        for mode in AppSettings.AppearanceMode.allCases {
+            appearancePopup.addItem(withTitle: mode.title)
+            appearancePopup.lastItem?.representedObject = mode.rawValue
+        }
+        appearancePopup.selectItem(
+            at: AppSettings.AppearanceMode.allCases.firstIndex(of: AppSettings.appearanceMode) ?? 0
+        )
+        appearancePopup.target = self
+        appearancePopup.action = #selector(appearancePopupChanged)
 
         let appearanceRow = NSStackView(views: [appearanceLabel, appearancePopup])
         appearanceRow.orientation = .horizontal
