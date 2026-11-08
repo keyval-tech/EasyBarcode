@@ -87,29 +87,29 @@ public enum HistoryExporter {
             "- 导出时间：\(exportedAt)",
             "- 共 \(rows.count) 条",
             "- 图片存放在同级文件夹「\(imagesFolderName)」，移动本文件时请一并移动。",
-            "",
-            "| \(columnHeaders.joined(separator: " | ")) |",
-            "| " + columnHeaders.map { _ in "---" }.joined(separator: " | ") + " |"
+            ""
         ]
 
         for (index, row) in rows.enumerated() {
             let imageName = String(format: "%02d", index + 1) + ".png"
-            var imageCell = ""
+            // Continuation lines are indented so every block below stays
+            // attached to its list item when rendered.
+            lines.append("- \(escapeCodeText(row.text))")
             if let pngData = row.pngData {
                 try pngData.write(
                     to: imagesDirectory.appendingPathComponent(imageName),
                     options: .atomic
                 )
-                imageCell = "![](\(imagesFolderName)/\(imageName))"
+                lines.append("")
+                lines.append("  ![](\(imagesFolderName)/\(imageName))")
             }
-            lines.append(
-                "| \(index + 1) "
-                    + "| \(escapeCodeText(row.text)) "
-                    + "| \(escapeMarkdown(row.formatName)) "
-                    + "| \(escapeMarkdown(row.dateString)) "
-                    + "| \(escapeMarkdown(row.note ?? "—")) "
-                    + "| \(imageCell) |"
-            )
+            lines.append("")
+            lines.append("  备注：\(escapeMarkdown(row.note ?? "—"))")
+            lines.append("")
+            lines.append("  格式：\(escapeMarkdown(row.formatName))")
+            lines.append("")
+            lines.append("  生成时间：\(escapeMarkdown(row.dateString))")
+            lines.append("")
         }
 
         try lines.joined(separator: "\n").write(to: url, atomically: true, encoding: .utf8)
