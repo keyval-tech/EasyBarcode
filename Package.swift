@@ -32,6 +32,11 @@ let package = Package(
             name: "BarcodeKitTests",
             dependencies: ["BarcodeKit"],
             swiftSettings: [.swiftLanguageMode(.v5)]
+        ),
+        .testTarget(
+            name: "EasyBarcodeTests",
+            dependencies: ["EasyBarcode"],
+            swiftSettings: [.swiftLanguageMode(.v5)]
         )
     ]
 )

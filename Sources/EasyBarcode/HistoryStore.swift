@@ -5,8 +5,9 @@ struct HistoryEntry: Codable, Identifiable, Equatable {
     let id: UUID
     let digits: String
     let format: BarcodeFormat
-    let createdAt: Date
+    var createdAt: Date
     var note: String?
+    var tabs: [String]?
     var imagePath: String?
 
     init(
@@ -15,6 +16,7 @@ struct HistoryEntry: Codable, Identifiable, Equatable {
         format: BarcodeFormat,
         createdAt: Date,
         note: String? = nil,
+        tabs: [String]? = nil,
         imagePath: String? = nil
     ) {
         self.id = id
@@ -22,6 +24,7 @@ struct HistoryEntry: Codable, Identifiable, Equatable {
         self.format = format
         self.createdAt = createdAt
         self.note = note
+        self.tabs = tabs
         self.imagePath = imagePath
     }
 }
@@ -32,14 +35,20 @@ struct HistoryEntry: Codable, Identifiable, Equatable {
 final class HistoryStore {
     static let shared = HistoryStore()
 
-    private(set) var entries: [HistoryEntry] = []
+    var entries: [HistoryEntry] = []
 
+    private let defaults: UserDefaults
     private let defaultsKey = "EasyBarcode.history.v1"
+    private let tabsKey = "EasyBarcode.historyTabs.v1"
     private let imagesDirectoryKey = "EasyBarcode.historyImagesDirectory"
     private let maxEntries = 50
 
-    private init() {
+    private(set) var tabs: [String] = []
+
+    init(defaults: UserDefaults = .standard) {
+        self.defaults = defaults
         load()
+        loadTabs()
         backfillImagesIfNeeded()
     }
 
@@ -53,7 +62,7 @@ final class HistoryStore {
     }
 
     var imagesDirectory: URL {
-        if let path = UserDefaults.standard.string(forKey: imagesDirectoryKey), !path.isEmpty {
+        if let path = defaults.string(forKey: imagesDirectoryKey), !path.isEmpty {
             return URL(fileURLWithPath: path, isDirectory: true)
         }
         return Self.defaultImagesDirectory
@@ -65,7 +74,7 @@ final class HistoryStore {
 
     func setImagesDirectory(_ url: URL) {
         let standardized = url.standardizedFileURL
-        UserDefaults.standard.set(standardized.path, forKey: imagesDirectoryKey)
+        defaults.set(standardized.path, forKey: imagesDirectoryKey)
         ensureImagesDirectory()
         migrateImages(to: standardized)
     }
@@ -200,10 +209,69 @@ final class HistoryStore {
         }
     }
 
+    // MARK: - Tabs
+
+    func addTab(_ name: String) {
+        let trimmed = name.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty, !tabs.contains(trimmed) else { return }
+        tabs.append(trimmed)
+        saveTabs()
+    }
+
+    func removeTab(_ name: String) {
+        tabs.removeAll { $0 == name }
+        for index in entries.indices {
+            if var entryTabs = entries[index].tabs {
+                entryTabs.removeAll { $0 == name }
+                entries[index].tabs = entryTabs.isEmpty ? nil : entryTabs
+            }
+        }
+        saveTabs()
+        save()
+    }
+
+    func renameTab(_ oldName: String, to newName: String) {
+        let trimmed = newName.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty, trimmed != oldName, !tabs.contains(trimmed) else { return }
+        if let index = tabs.firstIndex(of: oldName) {
+            tabs[index] = trimmed
+        }
+        for index in entries.indices {
+            if let entryTabs = entries[index].tabs {
+                entries[index].tabs = entryTabs.map { $0 == oldName ? trimmed : $0 }
+            }
+        }
+        saveTabs()
+        save()
+    }
+
+    /// Toggles an entry's membership in a tab.
+    func toggleTab(id: UUID, tab: String) {
+        guard let index = entries.firstIndex(where: { $0.id == id }) else { return }
+        var entryTabs = entries[index].tabs ?? []
+        if let position = entryTabs.firstIndex(of: tab) {
+            entryTabs.remove(at: position)
+        } else {
+            entryTabs.append(tab)
+        }
+        entries[index].tabs = entryTabs.isEmpty ? nil : entryTabs
+        save()
+    }
+
+    func saveTabs() {
+        defaults.set(tabs, forKey: tabsKey)
+    }
+
+    private func loadTabs() {
+        tabs = defaults.stringArray(forKey: tabsKey) ?? []
+    }
+
+    // MARK: - Filtering
+
     // MARK: - Persistence
 
     private func load() {
-        guard let data = UserDefaults.standard.data(forKey: defaultsKey),
+        guard let data = defaults.data(forKey: defaultsKey),
               let decoded = try? JSONDecoder().decode([HistoryEntry].self, from: data) else {
             return
         }
@@ -212,7 +280,7 @@ final class HistoryStore {
 
     private func save() {
         guard let data = try? JSONEncoder().encode(entries) else { return }
-        UserDefaults.standard.set(data, forKey: defaultsKey)
+        defaults.set(data, forKey: defaultsKey)
     }
 
     private func abbreviate(_ path: String) -> String {

@@ -3,7 +3,7 @@ import BarcodeKit
 import UniformTypeIdentifiers
 
 /// A normal window showing generated barcodes as an image-first grid.
-final class HistoryWindowController: NSWindowController, NSCollectionViewDataSource, NSCollectionViewDelegate, NSWindowDelegate {
+final class HistoryWindowController: NSWindowController, NSCollectionViewDataSource, NSCollectionViewDelegate, NSWindowDelegate, NSSearchFieldDelegate {
     var onHistoryChanged: (() -> Void)?
 
     private let store: HistoryStore
@@ -11,6 +11,8 @@ final class HistoryWindowController: NSWindowController, NSCollectionViewDataSou
     private var contentView: HistoryContentView!
     private var flowLayout: NSCollectionViewFlowLayout!
     private var statusResetWorkItem: DispatchWorkItem?
+    private var filter = HistoryFilter()
+    private var selectedTab: String?
 
     private static let exportDateFormatter: DateFormatter = {
         let formatter = DateFormatter()
@@ -41,7 +43,7 @@ final class HistoryWindowController: NSWindowController, NSCollectionViewDataSou
         window.contentMinSize = NSSize(width: 290, height: 400)
         window.delegate = self
 
-        let restored = window.setFrameUsingName("EasyBarcodeHistoryWindowV5")
+        let restored = window.setFrameUsingName("EasyBarcodeHistoryWindowV6")
         if restored {
             let frame = window.frame
             let onScreen = NSScreen.screens.contains { $0.visibleFrame.intersects(frame) }
@@ -52,7 +54,7 @@ final class HistoryWindowController: NSWindowController, NSCollectionViewDataSou
         } else {
             centerOnActiveScreen()
         }
-        window.setFrameAutosaveName("EasyBarcodeHistoryWindowV5")
+        window.setFrameAutosaveName("EasyBarcodeHistoryWindowV6")
 
         buildContent()
         reload()
@@ -86,6 +88,19 @@ final class HistoryWindowController: NSWindowController, NSCollectionViewDataSou
         content.exportButton.isEnabled = false
         content.clearButton.target = self
         content.clearButton.action = #selector(clearHistory)
+
+        content.searchField.delegate = self
+        content.notesToggle.target = self
+        content.notesToggle.action = #selector(notesToggleChanged)
+        content.formatSegments.target = self
+        content.formatSegments.action = #selector(formatSegmentChanged)
+        for range in HistoryTimeRange.allCases {
+            content.timePopup.addItem(withTitle: range.title)
+        }
+        content.timePopup.target = self
+        content.timePopup.action = #selector(timeRangeChanged)
+        content.addTabButton.target = self
+        content.addTabButton.action = #selector(addTabTapped)
         window.contentView = content
         contentView = content
 
@@ -115,18 +130,72 @@ final class HistoryWindowController: NSWindowController, NSCollectionViewDataSou
         statusResetWorkItem?.cancel()
         statusResetWorkItem = nil
 
+        let visible = store.entries(matching: filter)
         collectionView.reloadData()
 
-        let isEmpty = store.entries.isEmpty
+        let isEmpty = visible.isEmpty
         collectionView.isHidden = isEmpty
         contentView.emptyLabel.isHidden = !isEmpty
         contentView.emptyHint.isHidden = !isEmpty
-        contentView.clearButton.isEnabled = !isEmpty
-        contentView.exportButton.isEnabled = !isEmpty
-        restoreCountLabel()
+        if isEmpty && filter.isActive {
+            contentView.emptyLabel.stringValue = "没有匹配的记录"
+            contentView.emptyHint.stringValue = "调整搜索或筛选条件试试"
+        } else {
+            contentView.emptyLabel.stringValue = "还没有历史记录"
+            contentView.emptyHint.stringValue = "生成条码后会出现在这里"
+        }
+        contentView.clearButton.isEnabled = !store.entries.isEmpty
+        contentView.exportButton.isEnabled = !store.entries.isEmpty
+        restoreCountLabel(visibleCount: visible.count)
 
+        rebuildTabStrip()
         updateItemSize()
         updateCollectionFrame()
+    }
+
+    private func rebuildTabStrip() {
+        contentView.tabStack.arrangedSubviews.forEach { $0.removeFromSuperview() }
+
+        let allButton = tabButton(title: "全部", tabName: nil)
+        allButton.state = selectedTab == nil ? .on : .off
+        contentView.tabStack.addArrangedSubview(allButton)
+        for tab in store.tabs {
+            let button = tabButton(title: tab, tabName: tab)
+            button.state = selectedTab == tab ? .on : .off
+            contentView.tabStack.addArrangedSubview(button)
+        }
+    }
+
+    private func tabButton(title: String, tabName: String?) -> NSButton {
+        let button = NSButton(title: title, target: self, action: #selector(tabSelected(_:)))
+        button.isBordered = false
+        button.controlSize = .small
+        button.font = .systemFont(ofSize: 11, weight: .medium)
+        button.contentTintColor = .labelColor
+        button.identifier = NSUserInterfaceItemIdentifier(tabName ?? "__all__")
+        button.setButtonType(.momentaryChange)
+        button.lineBreakMode = .byTruncatingTail
+
+        let menu = NSMenu()
+        let rename = NSMenuItem(title: "重命名…", action: #selector(renameTabTapped(_:)), keyEquivalent: "")
+        rename.target = self
+        rename.representedObject = tabName
+        let delete = NSMenuItem(title: "删除 Tab", action: #selector(deleteTabTapped(_:)), keyEquivalent: "")
+        delete.target = self
+        delete.representedObject = tabName
+        menu.addItem(rename)
+        menu.addItem(delete)
+        button.menu = menu
+        return button
+    }
+
+    private func restoreCountLabel(visibleCount: Int? = nil) {
+        if let visibleCount, filter.isActive {
+            contentView.countLabel.stringValue = "共 \(store.entries.count) 条 · 筛选后 \(visibleCount) 条"
+        } else {
+            contentView.countLabel.stringValue = "共 \(store.entries.count) 条"
+        }
+        contentView.countLabel.textColor = .secondaryLabelColor
     }
 
     // MARK: - Layout
@@ -195,6 +264,12 @@ final class HistoryWindowController: NSWindowController, NSCollectionViewDataSou
         ) as! HistoryItem
 
         item.configure(with: entry)
+        item.availableTabs = store.tabs
+        item.onToggleTab = { [weak self] tab in
+            guard let self else { return }
+            self.store.toggleTab(id: entry.id, tab: tab)
+            self.reload()
+        }
         item.onCopy = { [weak self] in
             self?.copyEntry(entry) ?? false
         }
@@ -206,6 +281,103 @@ final class HistoryWindowController: NSWindowController, NSCollectionViewDataSou
         }
 
         return item
+    }
+
+    // MARK: - Filter & tabs
+
+    func controlTextDidChange(_ obj: Notification) {
+        if obj.object as? NSSearchField === contentView.searchField {
+            filter.query = contentView.searchField.stringValue
+            reload()
+        }
+    }
+
+    @objc private func notesToggleChanged() {
+        filter.onlyWithNotes = contentView.notesToggle.state == .on
+        reload()
+    }
+
+    @objc private func formatSegmentChanged() {
+        let segment = contentView.formatSegments.selectedSegment
+        let formats: [BarcodeFormat?] = [nil] + BarcodeFormat.manualFormats.map { $0 }
+        filter.format = formats.indices.contains(segment) ? formats[segment] : nil
+        reload()
+    }
+
+    @objc private func timeRangeChanged() {
+        let index = contentView.timePopup.indexOfSelectedItem
+        let ranges = HistoryTimeRange.allCases
+        filter.timeRange = ranges.indices.contains(index) ? ranges[index] : .all
+        reload()
+    }
+
+    @objc private func tabSelected(_ sender: NSButton) {
+        let raw = sender.identifier?.rawValue
+        selectedTab = (raw == nil || raw == "__all__") ? nil : raw
+        filter.tab = selectedTab
+        reload()
+    }
+
+    @objc private func addTabTapped() {
+        guard let window else { return }
+
+        let alert = NSAlert()
+        alert.messageText = "新建 Tab"
+        alert.informativeText = "为历史记录创建一个分类 Tab。"
+        let field = NSTextField(frame: NSRect(x: 0, y: 0, width: 220, height: 24))
+        field.placeholderString = "Tab 名称"
+        alert.accessoryView = field
+        alert.addButton(withTitle: "创建")
+        alert.addButton(withTitle: "取消")
+
+        alert.beginSheetModal(for: window) { [weak self] response in
+            guard response == .alertFirstButtonReturn, let self else { return }
+            self.store.addTab(field.stringValue)
+            self.reload()
+        }
+    }
+
+    @objc private func renameTabTapped(_ sender: NSMenuItem) {
+        guard let oldName = sender.representedObject as? String, let window else { return }
+
+        let alert = NSAlert()
+        alert.messageText = "重命名 Tab"
+        let field = NSTextField(frame: NSRect(x: 0, y: 0, width: 220, height: 24))
+        field.stringValue = oldName
+        alert.accessoryView = field
+        alert.addButton(withTitle: "确定")
+        alert.addButton(withTitle: "取消")
+
+        alert.beginSheetModal(for: window) { [weak self] response in
+            guard response == .alertFirstButtonReturn, let self else { return }
+            self.store.renameTab(oldName, to: field.stringValue)
+            if self.selectedTab == oldName {
+                self.selectedTab = field.stringValue.trimmingCharacters(in: .whitespacesAndNewlines)
+                self.filter.tab = self.selectedTab
+            }
+            self.reload()
+        }
+    }
+
+    @objc private func deleteTabTapped(_ sender: NSMenuItem) {
+        guard let name = sender.representedObject as? String, let window else { return }
+
+        let alert = NSAlert()
+        alert.messageText = "删除 Tab「\(name)」？"
+        alert.informativeText = "只移除这个分类，记录本身不会被删除。"
+        alert.addButton(withTitle: "删除")
+        alert.addButton(withTitle: "取消")
+        alert.buttons.first?.hasDestructiveAction = true
+
+        alert.beginSheetModal(for: window) { [weak self] response in
+            guard response == .alertFirstButtonReturn, let self else { return }
+            self.store.removeTab(name)
+            if self.selectedTab == name {
+                self.selectedTab = nil
+                self.filter.tab = nil
+            }
+            self.reload()
+        }
     }
 
     // MARK: - Actions
@@ -373,6 +545,19 @@ final class HistoryWindowController: NSWindowController, NSCollectionViewDataSou
 /// Manual layout on purpose: Auto Layout at the window's content root made
 /// AppKit collapse the window to a 1pt width when it was first shown.
 final class HistoryContentView: NSView {
+    let tabBarScrollView = NSScrollView()
+    let tabStack = NSStackView()
+    let addTabButton = NSButton()
+    let searchField = NSSearchField()
+    let notesToggle = NSButton(checkboxWithTitle: "仅看有备注", target: nil, action: nil)
+    let formatSegments = NSSegmentedControl(
+        labels: ["全部", "EAN-13", "UPC-A", "Code 128", "QR"],
+        trackingMode: .selectOne,
+        target: nil,
+        action: nil
+    )
+    let timePopup = NSPopUpButton()
+
     let scrollView = NSScrollView()
     let separator = NSBox()
     let countLabel = NSTextField(labelWithString: "")
@@ -423,11 +608,36 @@ final class HistoryContentView: NSView {
         super.layout()
 
         let footerHeight: CGFloat = 36
+        let tabBarHeight: CGFloat = 26
+        let searchRowHeight: CGFloat = 26
+        let filterRowHeight: CGFloat = 24
+        let rowGap: CGFloat = 8
+        let sidePadding: CGFloat = 10
+
+        var top = bounds.height
+        top -= tabBarHeight
+        tabBarScrollView.frame = NSRect(x: 0, y: top, width: bounds.width, height: tabBarHeight)
+        tabStack.frame = NSRect(x: 0, y: 0, width: max(tabBarScrollView.contentView.bounds.width, tabStack.fittingSize.width), height: tabBarHeight)
+        addTabButton.sizeToFit()
+        addTabButton.frame.origin = NSPoint(x: bounds.width - addTabButton.frame.width - sidePadding, y: top + (tabBarHeight - addTabButton.frame.height) / 2)
+
+        top -= rowGap
+        top -= searchRowHeight
+        searchField.frame = NSRect(x: sidePadding, y: top, width: bounds.width - sidePadding * 2 - 110, height: searchRowHeight)
+        notesToggle.sizeToFit()
+        notesToggle.frame.origin = NSPoint(x: bounds.width - notesToggle.frame.width - sidePadding, y: top + (searchRowHeight - notesToggle.frame.height) / 2)
+
+        top -= rowGap
+        top -= filterRowHeight
+        timePopup.sizeToFit()
+        timePopup.frame = NSRect(x: bounds.width - timePopup.frame.width - sidePadding, y: top - 2, width: timePopup.frame.width, height: filterRowHeight + 4)
+        formatSegments.frame = NSRect(x: sidePadding, y: top, width: bounds.width - sidePadding * 2 - timePopup.frame.width - 10, height: filterRowHeight)
+
         let scrollRect = NSRect(
             x: 0,
             y: footerHeight + 1,
             width: bounds.width,
-            height: max(0, bounds.height - footerHeight - 1)
+            height: max(0, top - footerHeight - 1 - 4)
         )
         scrollView.frame = scrollRect
         separator.frame = NSRect(x: 0, y: footerHeight, width: bounds.width, height: 1)
@@ -464,4 +674,6 @@ final class HistoryContentView: NSView {
 
         onLayout?()
     }
+
+
 }

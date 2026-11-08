@@ -10,6 +10,9 @@ final class HistoryItem: NSCollectionViewItem {
     var onCopy: (() -> Bool)?
     var onDelete: (() -> Void)?
     var onNoteChange: ((String) -> Void)?
+    var onToggleTab: ((String) -> Void)?
+    /// Populated before the card is shown; drives the assignment menu.
+    var availableTabs: [String] = []
 
     private let cardView = HistoryCardView()
     private let imageContainer = ClickableImageView()
@@ -17,6 +20,7 @@ final class HistoryItem: NSCollectionViewItem {
     private let metaLabel = NSTextField(labelWithString: "")
     private let noteEditor = NoteEditorView()
     private let deleteButton = NSButton()
+    private let tagButton = NSButton()
     private let copyFeedbackView = CopyFeedbackView()
 
     private static let dateFormatter: DateFormatter = {
@@ -87,6 +91,17 @@ final class HistoryItem: NSCollectionViewItem {
         copyFeedbackView.translatesAutoresizingMaskIntoConstraints = false
         imageContainer.addSubview(copyFeedbackView)
 
+        tagButton.isBordered = false
+        tagButton.image = NSImage(systemSymbolName: "tag", accessibilityDescription: "标记到 Tab")
+        tagButton.imageScaling = .scaleProportionallyDown
+        tagButton.contentTintColor = .secondaryLabelColor
+        tagButton.target = self
+        tagButton.action = #selector(tagTapped)
+        tagButton.toolTip = "标记到 Tab"
+        tagButton.setAccessibilityLabel("标记到 Tab")
+        tagButton.translatesAutoresizingMaskIntoConstraints = false
+
+        cardView.addSubview(tagButton)
         cardView.addSubview(imageContainer)
         cardView.addSubview(digitsLabel)
         cardView.addSubview(metaLabel)
@@ -112,6 +127,11 @@ final class HistoryItem: NSCollectionViewItem {
             noteEditor.topAnchor.constraint(equalTo: metaLabel.bottomAnchor, constant: 4),
             noteEditor.heightAnchor.constraint(equalToConstant: 56),
 
+            tagButton.leadingAnchor.constraint(equalTo: cardView.leadingAnchor, constant: 16),
+            tagButton.topAnchor.constraint(equalTo: cardView.topAnchor, constant: 16),
+            tagButton.widthAnchor.constraint(equalToConstant: 20),
+            tagButton.heightAnchor.constraint(equalToConstant: 20),
+
             deleteButton.trailingAnchor.constraint(equalTo: cardView.trailingAnchor, constant: -16),
             deleteButton.topAnchor.constraint(equalTo: cardView.topAnchor, constant: 16),
             deleteButton.widthAnchor.constraint(equalToConstant: 20),
@@ -126,7 +146,10 @@ final class HistoryItem: NSCollectionViewItem {
         updateAppearance()
     }
 
+    private var currentEntry: HistoryEntry?
+
     func configure(with entry: HistoryEntry) {
+        currentEntry = entry
         copyFeedbackView.reset()
 
         digitsLabel.stringValue = entry.digits
@@ -138,6 +161,38 @@ final class HistoryItem: NSCollectionViewItem {
 
     @objc private func deleteTapped() {
         onDelete?()
+    }
+
+    @objc private func tagTapped() {
+        let menu = NSMenu()
+        if availableTabs.isEmpty {
+            let hint = NSMenuItem(title: "（先在 Tab 栏点 + 新建）", action: nil, keyEquivalent: "")
+            hint.isEnabled = false
+            menu.addItem(hint)
+            menu.autoenablesItems = false
+            menu.popUp(positioning: nil, at: NSPoint(x: 0, y: tagButton.bounds.height + 4), in: tagButton)
+            return
+        }
+        for tab in availableTabs {
+            let item = NSMenuItem(title: tab, action: #selector(toggleTabFromMenu(_:)), keyEquivalent: "")
+            item.target = self
+            item.representedObject = tab
+            item.state = (currentEntry?.tabs ?? []).contains(tab) ? .on : .off
+            menu.addItem(item)
+        }
+        menu.autoenablesItems = false
+        menu.popUp(
+            positioning: nil,
+            at: NSPoint(x: 0, y: tagButton.bounds.height + 4),
+            in: tagButton
+        )
+    }
+
+    private weak var hostWindow: NSWindow?
+
+    @objc private func toggleTabFromMenu(_ sender: NSMenuItem) {
+        guard let tab = sender.representedObject as? String else { return }
+        onToggleTab?(tab)
     }
 
     private func showCopiedFeedback() {
