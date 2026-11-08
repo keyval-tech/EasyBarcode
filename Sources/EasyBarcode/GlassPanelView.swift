@@ -17,11 +17,29 @@ final class GlassPanelView: NSView {
         }
     }
 
-    private func applyGlassMode() {
-        glass.isHidden = !glassEnabled
-        layer?.backgroundColor = glassEnabled
+    @objc private func applyGlassMode() {
+        // The glass material follows the SYSTEM appearance and ignores
+        // NSApp/window/view overrides, so a forced light/dark would render
+        // mismatched text and background. Fall back to the opaque standard
+        // look whenever the user pins the appearance.
+        let useGlassNow = glassEnabled && AppSettings.appearanceMode == .system
+        glass.isHidden = !useGlassNow
+        layer?.backgroundColor = useGlassNow
             ? nil
             : NSColor.windowBackgroundColor.cgColor
+    }
+
+    override init(frame frameRect: NSRect) {
+        super.init(frame: frameRect)
+        glassEnabled = AppSettings.useGlass
+        build()
+        applyGlassMode()
+        NotificationCenter.default.addObserver(
+            self,
+            selector: #selector(applyGlassMode),
+            name: AppSettings.appearanceChangedNotification,
+            object: nil
+        )
     }
 
     let textField = NSTextField()
@@ -35,13 +53,6 @@ final class GlassPanelView: NSView {
     let copyFeedback = CopyFeedbackView()
     let buttonContainer = NSGlassEffectContainerView()
     let buttonStack = NSStackView()
-
-    override init(frame frameRect: NSRect) {
-        super.init(frame: frameRect)
-        glassEnabled = AppSettings.useGlass
-        build()
-        applyGlassMode()
-    }
 
     required init?(coder: NSCoder) {
         fatalError("init(coder:) has not been implemented")

@@ -50,6 +50,15 @@ final class BarcodePanelController: NSObject, NSTextFieldDelegate {
             name: AppSettings.glassChangedNotification,
             object: nil
         )
+        NotificationCenter.default.addObserver(
+            self,
+            selector: #selector(appearanceSettingChanged),
+            name: AppSettings.appearanceChangedNotification,
+            object: nil
+        )
+        // Window-level override so the NSGlassEffectView material follows
+        // the configured appearance instead of the system one.
+        window.appearance = AppSettings.appearanceMode.nsAppearance
         restoreOrPositionWindow()
         configureInteractions()
         showInputState()
@@ -60,6 +69,9 @@ final class BarcodePanelController: NSObject, NSTextFieldDelegate {
         view.glassEnabled = AppSettings.useGlass
     }
 
+    @objc private func appearanceSettingChanged() {
+        window.appearance = AppSettings.appearanceMode.nsAppearance
+    }
     // MARK: - Presentation
 
     func toggle() {

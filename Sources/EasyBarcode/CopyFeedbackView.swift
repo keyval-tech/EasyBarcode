@@ -2,7 +2,8 @@ import AppKit
 import QuartzCore
 
 /// The shared Liquid Glass "已复制" feedback used by both the history cards
-/// and the main preview.
+/// and the main preview. In forced light/dark modes the glass material is
+/// covered by an opaque pill so the label stays readable.
 final class CopyFeedbackView: NSGlassEffectView {
     private let label = NSTextField(labelWithString: "已复制")
     private var resetWorkItem: DispatchWorkItem?
@@ -41,6 +42,14 @@ final class CopyFeedbackView: NSGlassEffectView {
             label.centerXAnchor.constraint(equalTo: content.centerXAnchor),
             label.centerYAnchor.constraint(equalTo: content.centerYAnchor)
         ])
+
+        refreshTint()
+        NotificationCenter.default.addObserver(
+            self,
+            selector: #selector(refreshTint),
+            name: AppSettings.appearanceChangedNotification,
+            object: nil
+        )
     }
 
     required init?(coder: NSCoder) {
@@ -54,6 +63,22 @@ final class CopyFeedbackView: NSGlassEffectView {
     /// Feedback is purely visual; clicks pass through to the barcode below.
     override func hitTest(_ point: NSPoint) -> NSView? {
         nil
+    }
+
+    @objc private func refreshTint() {
+        // The glass material follows the SYSTEM appearance and ignores
+        // appearance overrides, so in forced light/dark modes cover it with
+        // an opaque pill matching the mode; in system mode let it adapt.
+        if AppSettings.appearanceMode == .system {
+            layer?.backgroundColor = nil
+            label.textColor = .labelColor
+        } else {
+            let dark = AppSettings.appearanceMode == .dark
+            layer?.backgroundColor = (dark
+                ? NSColor(white: 0.16, alpha: 1)
+                : NSColor.white).cgColor
+            label.textColor = dark ? .white : .labelColor
+        }
     }
 
     func show() {
