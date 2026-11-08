@@ -19,6 +19,9 @@ macOS 26 / 27 上的原生条码生成小工具。常驻菜单栏，按 `⌥B` �
   - 手动可切换 EAN-13 / UPC-A / Code 128 / QR，手动选择优先。
 - **历史记录**：每次按 `⏎` 生成后写入历史，最多保留 50 条并跨启动保存。按 `⌥H`、点击底部时钟按钮或菜单栏「历史记录」打开独立的历史窗口：条码图片是卡片主体，数字、格式、时间作为次要信息。点击图片自动复制条码；每条支持多行备注，也可以单独删除；底部支持一键清空。
 - **历史图片落盘**：每条历史记录会保存一张 PNG 到历史图片目录（默认 `~/Library/Application Support/EasyBarcode/History`），可在设置中更换目录，也可以一键在 Finder 中打开。
+- **历史导出**：历史窗口底栏「导出」支持两种格式——
+  - **xlsx**：五列（# / 内容 / 格式 / 生成时间 / 备注 / 图片），每行把条码 PNG 直接**内嵌到单元格**里（基于 [XLKit](https://github.com/TheAcharya/XLKit)，MIT）
+  - **Markdown**：生成表格 + 同名图片文件夹（`EasyBarcode历史-日期图片/`），相对路径引用，Typora / VS Code / 飞书文档导入即可显示条码缩略图
 - **设置**：菜单栏「设置」里可分别修改全局（主窗口）与应用内（历史记录）快捷键，打开 / 选择 / 恢复历史图片目录，以及登录时启动。
 - **普通窗口**：标准标题栏、红黄绿按钮，可移动、缩放、最小化、关闭；失去焦点不会消失，再次按快捷键显隐。最小尺寸 300 × 335（此时预览图约 230 × 120）。
 - **Liquid Glass**：`NSGlassEffectView` 原生玻璃背景，自动适配浅色/深色外观；静态玻璃，点击无回弹。
@@ -48,7 +51,7 @@ sudo ditto build/EasyBarcode.app /Applications/EasyBarcode.app
 1. 启动 EasyBarcode（菜单栏出现 barcode 图标，无 Dock 图标）。
 2. 在任意 App 中按 `⌥B`，主窗口出现；再按一次隐藏。EasyBarcode 激活时按 `⌥H` 打开/关闭历史窗口（应用内快捷键）。
 3. 输入数字，按 `⏎`：生成条码、复制图片到剪贴板，并写入历史；之后点击预览图也可以再次复制。
-4. 按 `⌥H`（或点击底部时钟按钮 / 菜单栏「历史记录」）打开历史窗口：点击条码图片即复制；点击备注文字可编辑（支持多行）；右上角垃圾桶可单独删除。
+4. 按 `⌥H`（或点击底部时钟按钮 / 菜单栏「历史记录」）打开历史窗口：点击条码图片即复制；点击备注文字可编辑（支持多行）；右上角垃圾桶可单独删除；底栏「导出」可把历史导出为 xlsx（内嵌图片）或 Markdown（表格 + 图片文件夹）。
 5. 菜单栏「设置」：分别修改主窗口/历史记录快捷键、打开或更换历史图片目录、登录启动。
 6. `⌘W` 关闭窗口（应用继续驻留菜单栏）。
 
@@ -75,6 +78,11 @@ App 二进制内置渲染命令，便于脚本或批量生成：
 - 历史记录保存在 UserDefaults（最多 50 条）；对应的条码图片以 UUID.png 的形式保存在历史图片目录中，设置里可以打开、更换目录，已有图片会复制到新目录。
 - 测试通过 Vision `VNDetectBarcodesRequest` 对生成图片做回环解码，EAN-13 / UPC-A / Code 128 / QR 全部通过。
 - 图标由 `Scripts/make-icon.swift` 用 CoreGraphics 生成，`iconutil` 打包为 `.icns`。
+
+## 第三方依赖
+
+- [XLKit](https://github.com/TheAcharya/XLKit)（MIT）— xlsx 生成与图片内嵌
+- [ZIPFoundation](https://github.com/weichsel/ZIPFoundation)、[swift-textfile](https://github.com/orchetect/swift-textfile) — XLKit 的传递依赖
 
 ## 目录
 

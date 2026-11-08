@@ -1,0 +1,33 @@
+{
+  "originHash" : "cd45becee5323b9d7b166405df6771c1f0ea979bfb963b593bf4d7ca24970190",
+  "pins" : [
+    {
+      "identity" : "swift-textfile",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/orchetect/swift-textfile.git",
+      "state" : {
+        "revision" : "c9ffbb259f58c8ef4004a7d77f1a3b2c7ccf8638",
+        "version" : "0.5.2"
+      }
+    },
+    {
+      "identity" : "xlkit",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/TheAcharya/XLKit.git",
+      "state" : {
+        "revision" : "1c11d6ce38345a103364c775cd798a1015980e91",
+        "version" : "1.1.8"
+      }
+    },
+    {
+      "identity" : "zipfoundation",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/weichsel/ZIPFoundation.git",
+      "state" : {
+        "revision" : "22787ffb59de99e5dc1fbfe80b19c97a904ad48d",
+        "version" : "0.9.20"
+      }
+    }
+  ],
+  "version" : 3
+}

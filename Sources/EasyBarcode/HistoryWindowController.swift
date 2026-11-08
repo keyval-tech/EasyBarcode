@@ -1,5 +1,6 @@
 import AppKit
 import BarcodeKit
+import UniformTypeIdentifiers
 
 /// A normal window showing generated barcodes as an image-first grid.
 final class HistoryWindowController: NSWindowController, NSCollectionViewDataSource, NSCollectionViewDelegate, NSWindowDelegate {
@@ -10,6 +11,18 @@ final class HistoryWindowController: NSWindowController, NSCollectionViewDataSou
     private var contentView: HistoryContentView!
     private var flowLayout: NSCollectionViewFlowLayout!
     private var statusResetWorkItem: DispatchWorkItem?
+
+    private static let exportDateFormatter: DateFormatter = {
+        let formatter = DateFormatter()
+        formatter.dateFormat = "yyyy-MM-dd"
+        return formatter
+    }()
+
+    private static let exportRowDateFormatter: DateFormatter = {
+        let formatter = DateFormatter()
+        formatter.dateFormat = "yyyy-MM-dd HH:mm"
+        return formatter
+    }()
 
     init(store: HistoryStore) {
         self.store = store
@@ -68,6 +81,9 @@ final class HistoryWindowController: NSWindowController, NSCollectionViewDataSou
         content.onLayout = { [weak self] in
             self?.updateItemSize()
         }
+        content.exportButton.target = self
+        content.exportButton.action = #selector(exportHistory)
+        content.exportButton.isEnabled = false
         content.clearButton.target = self
         content.clearButton.action = #selector(clearHistory)
         window.contentView = content
@@ -106,6 +122,7 @@ final class HistoryWindowController: NSWindowController, NSCollectionViewDataSou
         contentView.emptyLabel.isHidden = !isEmpty
         contentView.emptyHint.isHidden = !isEmpty
         contentView.clearButton.isEnabled = !isEmpty
+        contentView.exportButton.isEnabled = !isEmpty
         restoreCountLabel()
 
         updateItemSize()
@@ -250,6 +267,57 @@ final class HistoryWindowController: NSWindowController, NSCollectionViewDataSou
         contentView.countLabel.textColor = .secondaryLabelColor
     }
 
+    @objc private func exportHistory() {
+        guard let window else { return }
+
+        let panel = NSSavePanel()
+        panel.allowedContentTypes = [
+            UTType(filenameExtension: "xlsx") ?? .data,
+            UTType(filenameExtension: "md") ?? .data
+        ]
+        let stamp = Self.exportDateFormatter.string(from: Date())
+        panel.nameFieldStringValue = "EasyBarcode历史-\(stamp)"
+        panel.canCreateDirectories = true
+
+        panel.beginSheetModal(for: window) { [weak self] response in
+            guard response == .OK, let url = panel.url, let self else { return }
+            self.runExport(to: url)
+        }
+    }
+
+    private func runExport(to url: URL) {
+        let dateFormatter = Self.exportRowDateFormatter
+        let rows = store.entries.map { entry -> HistoryExportRow in
+            let payload = BarcodePayloadBuilder.make(from: entry.digits, requested: entry.format)
+            let pngData = payload.isValid
+                ? BarcodeImageRenderer.pngData(for: payload, targetWidth: 900)
+                : nil
+            return HistoryExportRow(
+                text: entry.digits,
+                formatName: entry.format.displayName,
+                dateString: dateFormatter.string(from: entry.createdAt),
+                note: entry.note,
+                pngData: pngData
+            )
+        }
+
+        Task { @MainActor in
+            do {
+                let count: Int
+                let ext = url.pathExtension.lowercased()
+                if ext == "md" || ext == "markdown" {
+                    count = try HistoryExporter.exportMarkdown(rows: rows, to: url)
+                } else {
+                    count = try await HistoryExporter.exportXLSX(rows: rows, to: url)
+                }
+                self.flashStatus("已导出 \(count) 条")
+            } catch {
+                let alert = NSAlert(error: error)
+                alert.runModal()
+            }
+        }
+    }
+
     @objc private func clearHistory() {
         guard let window else { return }
 
@@ -276,6 +344,7 @@ final class HistoryContentView: NSView {
     let scrollView = NSScrollView()
     let separator = NSBox()
     let countLabel = NSTextField(labelWithString: "")
+    let exportButton = NSButton(title: "导出", target: nil, action: nil)
     let clearButton = NSButton(title: "清空历史", target: nil, action: nil)
     let emptyLabel = NSTextField(labelWithString: "还没有历史记录")
     let emptyHint = NSTextField(labelWithString: "生成条码后会出现在这里")
@@ -301,9 +370,14 @@ final class HistoryContentView: NSView {
         emptyHint.textColor = .tertiaryLabelColor
         emptyHint.alignment = .center
 
+        exportButton.isBordered = false
+        exportButton.font = .systemFont(ofSize: 11)
+        exportButton.contentTintColor = .secondaryLabelColor
+
         addSubview(scrollView)
         addSubview(separator)
         addSubview(countLabel)
+        addSubview(exportButton)
         addSubview(clearButton)
         addSubview(emptyLabel)
         addSubview(emptyHint)
@@ -336,6 +410,12 @@ final class HistoryContentView: NSView {
         clearButton.frame.origin = NSPoint(
             x: bounds.width - clearButton.frame.width - 16,
             y: footerHeight / 2 - clearButton.frame.height / 2
+        )
+
+        exportButton.sizeToFit()
+        exportButton.frame.origin = NSPoint(
+            x: clearButton.frame.minX - exportButton.frame.width - 14,
+            y: footerHeight / 2 - exportButton.frame.height / 2
         )
 
         emptyLabel.sizeToFit()

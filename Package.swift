@@ -10,9 +10,13 @@ let package = Package(
         .executable(name: "EasyBarcode", targets: ["EasyBarcode"]),
         .library(name: "BarcodeKit", targets: ["BarcodeKit"])
     ],
+    dependencies: [
+        .package(url: "https://github.com/TheAcharya/XLKit.git", from: "1.1.8")
+    ],
     targets: [
         .target(
             name: "BarcodeKit",
+            dependencies: [.product(name: "XLKit", package: "XLKit")],
             swiftSettings: [.swiftLanguageMode(.v5)]
         ),
         .executableTarget(
