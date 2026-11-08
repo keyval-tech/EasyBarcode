@@ -591,6 +591,40 @@ final class HistoryContentView: NSView {
         exportButton.font = .systemFont(ofSize: 11)
         exportButton.contentTintColor = .secondaryLabelColor
 
+        tabBarScrollView.hasHorizontalScroller = false
+        tabBarScrollView.drawsBackground = false
+        tabStack.orientation = .horizontal
+        tabStack.spacing = 6
+        tabStack.edgeInsets = NSEdgeInsets(top: 0, left: 4, bottom: 0, right: 4)
+        tabBarScrollView.documentView = tabStack
+
+        addTabButton.isBordered = false
+        addTabButton.image = NSImage(systemSymbolName: "plus", accessibilityDescription: "新建 Tab")
+        addTabButton.contentTintColor = .secondaryLabelColor
+        addTabButton.toolTip = "新建 Tab"
+
+        searchField.placeholderString = "搜索内容或备注"
+        searchField.sendsWholeSearchString = false
+        searchField.sendsSearchStringImmediately = true
+        searchField.controlSize = .small
+        searchField.font = .systemFont(ofSize: 11)
+
+        notesToggle.controlSize = .small
+        notesToggle.font = .systemFont(ofSize: 11)
+
+        formatSegments.controlSize = .small
+        formatSegments.font = .systemFont(ofSize: 11)
+        formatSegments.selectedSegment = 0
+
+        timePopup.controlSize = .small
+        timePopup.font = .systemFont(ofSize: 11)
+
+        addSubview(tabBarScrollView)
+        addSubview(addTabButton)
+        addSubview(searchField)
+        addSubview(notesToggle)
+        addSubview(formatSegments)
+        addSubview(timePopup)
         addSubview(scrollView)
         addSubview(separator)
         addSubview(countLabel)
