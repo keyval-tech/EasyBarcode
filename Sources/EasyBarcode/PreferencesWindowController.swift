@@ -5,6 +5,7 @@ final class PreferencesWindowController: NSWindowController {
     private let mainRecorder: HotKeyRecorderView
     private let historyRecorder: HotKeyRecorderView
     private let loginCheckbox: NSButton
+    private let glassCheckbox: NSButton
     private let imagesPathLabel = NSTextField(labelWithString: "")
 
     var onHotKeyChange: ((HotKeySlot, HotKeyConfig) -> Bool)?
@@ -13,6 +14,9 @@ final class PreferencesWindowController: NSWindowController {
         mainRecorder = HotKeyRecorderView(config: mainHotKeyConfig)
         historyRecorder = HotKeyRecorderView(config: historyHotKeyConfig)
         loginCheckbox = NSButton(checkboxWithTitle: "登录时自动启动 EasyBarcode", target: nil, action: nil)
+        glassCheckbox = NSButton(checkboxWithTitle: "主窗口使用玻璃质感（Liquid Glass）", target: nil, action: nil)
+        glassCheckbox.font = .systemFont(ofSize: 13)
+        glassCheckbox.state = AppSettings.useGlass ? .on : .off
 
         let window = NSWindow(
             contentRect: NSRect(x: 0, y: 0, width: 440, height: 430),
@@ -83,6 +87,9 @@ final class PreferencesWindowController: NSWindowController {
         shortcutHint.lineBreakMode = .byWordWrapping
         shortcutHint.preferredMaxLayoutWidth = 380
 
+        let appearanceTitle = NSTextField(labelWithString: "外观")
+        appearanceTitle.font = .systemFont(ofSize: 13, weight: .semibold)
+
         let imagesTitle = NSTextField(labelWithString: "历史图片目录")
         imagesTitle.font = .systemFont(ofSize: 13, weight: .semibold)
 
@@ -115,6 +122,8 @@ final class PreferencesWindowController: NSWindowController {
         imagesHint.font = .systemFont(ofSize: 11)
         imagesHint.textColor = .secondaryLabelColor
 
+        glassCheckbox.target = self
+        glassCheckbox.action = #selector(toggleGlass)
         loginCheckbox.target = self
         loginCheckbox.action = #selector(toggleLogin)
         loginCheckbox.font = .systemFont(ofSize: 13)
@@ -130,6 +139,8 @@ final class PreferencesWindowController: NSWindowController {
             historyRow,
             appHint,
             shortcutHint,
+            appearanceTitle,
+            glassCheckbox,
             imagesTitle,
             imagesRow,
             imagesHint,
@@ -146,6 +157,8 @@ final class PreferencesWindowController: NSWindowController {
         stack.setCustomSpacing(4, after: historyRow)
         stack.setCustomSpacing(10, after: appHint)
         stack.setCustomSpacing(18, after: shortcutHint)
+        stack.setCustomSpacing(8, after: appearanceTitle)
+        stack.setCustomSpacing(16, after: glassCheckbox)
         stack.setCustomSpacing(8, after: imagesTitle)
         stack.setCustomSpacing(6, after: imagesRow)
         stack.setCustomSpacing(18, after: imagesHint)
@@ -186,6 +199,10 @@ final class PreferencesWindowController: NSWindowController {
     private func refreshImagesDirectory() {
         imagesPathLabel.stringValue = HistoryStore.shared.imagesDirectoryDisplayPath
         imagesPathLabel.toolTip = HistoryStore.shared.imagesDirectory.path
+    }
+
+    @objc private func toggleGlass() {
+        AppSettings.useGlass = glassCheckbox.state == .on
     }
 
     @objc private func openImagesDirectory() {

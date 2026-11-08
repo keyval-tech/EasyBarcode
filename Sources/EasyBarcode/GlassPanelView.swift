@@ -9,6 +9,21 @@ final class GlassPanelView: NSView {
     let glass = NSGlassEffectView()
     let content = NSView()
 
+    /// Toggled from 设置 › 外观; off renders an opaque standard background.
+    var glassEnabled: Bool = true {
+        didSet {
+            guard glassEnabled != oldValue else { return }
+            applyGlassMode()
+        }
+    }
+
+    private func applyGlassMode() {
+        glass.isHidden = !glassEnabled
+        layer?.backgroundColor = glassEnabled
+            ? nil
+            : NSColor.windowBackgroundColor.cgColor
+    }
+
     let textField = NSTextField()
     let formatButton = FormatPickerButton()
     let statusLabel = NSTextField(labelWithString: "")
@@ -23,7 +38,9 @@ final class GlassPanelView: NSView {
 
     override init(frame frameRect: NSRect) {
         super.init(frame: frameRect)
+        glassEnabled = AppSettings.useGlass
         build()
+        applyGlassMode()
     }
 
     required init?(coder: NSCoder) {
@@ -47,12 +64,15 @@ final class GlassPanelView: NSView {
         ])
 
         content.translatesAutoresizingMaskIntoConstraints = false
-        glass.contentView = content
+        // Content sits as a sibling ABOVE the glass (not inside
+        // glass.contentView) so the glass can be hidden entirely without
+        // hiding the UI in non-glass mode.
+        addSubview(content)
         NSLayoutConstraint.activate([
-            content.leadingAnchor.constraint(equalTo: glass.leadingAnchor),
-            content.trailingAnchor.constraint(equalTo: glass.trailingAnchor),
-            content.topAnchor.constraint(equalTo: glass.topAnchor),
-            content.bottomAnchor.constraint(equalTo: glass.bottomAnchor)
+            content.leadingAnchor.constraint(equalTo: leadingAnchor),
+            content.trailingAnchor.constraint(equalTo: trailingAnchor),
+            content.topAnchor.constraint(equalTo: topAnchor),
+            content.bottomAnchor.constraint(equalTo: bottomAnchor)
         ])
 
         configureTextField()

@@ -41,10 +41,20 @@ final class BarcodePanelController: NSObject, NSTextFieldDelegate {
         super.init()
 
         window.contentView = view
+        NotificationCenter.default.addObserver(
+            self,
+            selector: #selector(glassSettingChanged),
+            name: AppSettings.glassChangedNotification,
+            object: nil
+        )
         restoreOrPositionWindow()
         configureInteractions()
         showInputState()
         updateHistoryTooltip()
+    }
+
+    @objc private func glassSettingChanged() {
+        view.glassEnabled = AppSettings.useGlass
     }
 
     // MARK: - Presentation
