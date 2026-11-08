@@ -273,7 +273,7 @@ final class HistoryWindowController: NSWindowController, NSCollectionViewDataSou
         guard let window else { return }
 
         let menu = NSMenu()
-        for (title, extensionName) in [("导出为 xlsx…", "xlsx"), ("导出为 Markdown…", "md")] {
+        for (title, extensionName) in [("导出为 Excel（.xlsx）…", "xlsx"), ("导出为 Markdown（.md）…", "md")] {
             let item = NSMenuItem(title: title, action: #selector(exportAs(_:)), keyEquivalent: "")
             item.target = self
             item.representedObject = extensionName
