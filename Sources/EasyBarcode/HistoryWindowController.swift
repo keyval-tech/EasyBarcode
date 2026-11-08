@@ -496,8 +496,10 @@ final class HistoryWindowController: NSWindowController, NSCollectionViewDataSou
     }
 
     private func runExport(to url: URL) {
+        // WYSIWYG: export exactly what the list is showing — the filtered
+        // set when a filter is active, everything otherwise.
         let dateFormatter = Self.exportRowDateFormatter
-        let rows = store.entries.map { entry -> HistoryExportRow in
+        let rows = visibleEntries.map { entry -> HistoryExportRow in
             let payload = BarcodePayloadBuilder.make(from: entry.digits, requested: entry.format)
             let pngData = payload.isValid
                 ? BarcodeImageRenderer.pngData(for: payload, targetWidth: 900)
