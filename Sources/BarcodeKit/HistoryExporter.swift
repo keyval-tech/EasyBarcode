@@ -194,6 +194,84 @@ public enum HistoryExporter {
             + "</w:drawing></w:r></w:p>"
     }
 
+    // MARK: - HTML
+
+    /// Writes a self-contained .html: the history as a table whose last
+    /// column holds the barcode inside the cell (base64 data URI, width
+    /// capped), followed by an 导出信息 section. No companion files needed.
+    @discardableResult
+    public static func exportHTML(rows: [HistoryExportRow], to url: URL) throws -> Int {
+        let exportedAt = DateFormatter.localizedString(from: Date(), dateStyle: .medium, timeStyle: .short)
+
+        var tableRows: [String] = []
+        for (index, row) in rows.enumerated() {
+            var imageCell = ""
+            if let pngData = row.pngData {
+                imageCell = "<img src=\"data:image/png;base64,\(pngData.base64EncodedString())\" width=\"\(Int(imageDisplayWidth))\">"
+            }
+            tableRows.append(
+                "<tr>"
+                    + "<td>\(index + 1)</td>"
+                    + "<td class=\"code\">\(htmlEscape(row.text))</td>"
+                    + "<td>\(htmlEscape(row.formatName))</td>"
+                    + "<td>\(htmlEscape(row.dateString))</td>"
+                    + "<td>\(htmlText(row.note ?? "—"))</td>"
+                    + "<td class=\"img\">\(imageCell)</td>"
+                    + "</tr>"
+            )
+        }
+
+        let html = """
+        <!DOCTYPE html>
+        <html lang="zh-CN">
+        <head>
+        <meta charset="utf-8">
+        <title>EasyBarcode 历史记录</title>
+        <style>
+          body { font-family: -apple-system, "PingFang SC", sans-serif; margin: 24px; color: #1d1d1f; }
+          h1 { font-size: 22px; } h2 { font-size: 16px; margin-top: 32px; }
+          table { border-collapse: collapse; margin-top: 12px; }
+          th, td { border: 1px solid #d2d2d7; padding: 8px 12px; font-size: 13px; text-align: left; vertical-align: middle; }
+          th { background: #f5f5f7; }
+          td.code { font-family: "SF Mono", Menlo, monospace; }
+          td.img { background: #ffffff; }
+          td.img img { width: \(Int(imageDisplayWidth))px; height: auto; display: block; }
+          ul.meta { color: #6e6e73; font-size: 12px; }
+        </style>
+        </head>
+        <body>
+        <h1>EasyBarcode 历史记录</h1>
+        <h2>条目</h2>
+        <table>
+        <tr><th>\(columnHeaders.joined(separator: "</th><th>"))</th></tr>
+        \(tableRows.joined(separator: "\n"))
+        </table>
+        <h2>导出信息</h2>
+        <ul class="meta">
+        <li>导出时间：\(htmlEscape(exportedAt))</li>
+        <li>共 \(rows.count) 条</li>
+        <li>图片以内嵌方式存储，本文件可单独分发。</li>
+        </ul>
+        </body>
+        </html>
+        """
+
+        try html.write(to: url, atomically: true, encoding: .utf8)
+        return rows.count
+    }
+
+    /// Escaped text where newlines become visible line breaks inside a cell.
+    static func htmlText(_ text: String) -> String {
+        htmlEscape(text).replacingOccurrences(of: "\n", with: "<br>")
+    }
+
+    static func htmlEscape(_ text: String) -> String {
+        text.replacingOccurrences(of: "&", with: "&amp;")
+            .replacingOccurrences(of: "<", with: "&lt;")
+            .replacingOccurrences(of: ">", with: "&gt;")
+            .replacingOccurrences(of: "\"", with: "&quot;")
+    }
+
     // MARK: - Markdown
 
     /// Writes a Markdown document mirroring the DOCX layout: 条目 section with

@@ -156,6 +156,31 @@ final class HistoryExporterTests: XCTestCase {
         try validateWithPythonDocX(at: url)
     }
 
+    @MainActor
+    func testHTMLExportProducesSelfContainedTableWithEmbeddedImages() throws {
+        let url = FileManager.default.temporaryDirectory
+            .appendingPathComponent("eb-export-\(UUID().uuidString).html")
+        defer { try? FileManager.default.removeItem(at: url) }
+
+        let count = try HistoryExporter.exportHTML(rows: try makeRows(), to: url)
+        XCTAssertEqual(count, 3)
+
+        let html = try String(contentsOf: url, encoding: .utf8)
+        XCTAssertTrue(html.contains("<title>EasyBarcode 历史记录</title>"))
+        XCTAssertTrue(html.contains("## 条目".replacingOccurrences(of: "## ", with: "<h2>")))
+        XCTAssertTrue(html.contains("<table>"))
+        XCTAssertTrue(html.contains("<th>#</th><th>内容</th><th>格式</th><th>生成时间</th><th>备注</th><th>图片</th>"))
+        XCTAssertTrue(html.contains("<td class=\"code\">6901234567892</td>"))
+        XCTAssertTrue(html.contains("<td>样品 | 给客户</td>"))
+        // Two embedded images as data URIs; row 3 has none.
+        XCTAssertEqual(html.components(separatedBy: "data:image/png;base64,").count - 1, 2)
+        XCTAssertTrue(html.contains("width=\"180\""))
+        XCTAssertTrue(html.contains("<td>多行<br>备注</td>"))
+        XCTAssertTrue(html.contains("<h2>导出信息</h2>"))
+        XCTAssertTrue(html.contains("共 3 条"))
+        XCTAssertFalse(html.contains("images-fallback-folder"))
+    }
+
     // MARK: - Helpers
 
     private func validateWithProcess(
