@@ -294,6 +294,7 @@ final class HistoryWindowController: NSWindowController, NSCollectionViewDataSou
         panel.allowedContentTypes = [UTType(filenameExtension: extensionName) ?? .data]
         let stamp = Self.exportDateFormatter.string(from: Date())
         panel.nameFieldStringValue = "EasyBarcode历史-\(stamp).\(extensionName)"
+        panel.directoryURL = FileManager.default.urls(for: .downloadsDirectory, in: .userDomainMask).first
         panel.canCreateDirectories = true
 
         panel.beginSheetModal(for: window) { [weak self] response in
