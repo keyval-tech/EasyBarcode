@@ -13,6 +13,7 @@ final class HistoryWindowController: NSWindowController, NSCollectionViewDataSou
     private var statusResetWorkItem: DispatchWorkItem?
     private var filter = HistoryFilter()
     private var selectedTab: String?
+    private var visibleEntries: [HistoryEntry] = []
 
     private static let exportDateFormatter: DateFormatter = {
         let formatter = DateFormatter()
@@ -130,10 +131,10 @@ final class HistoryWindowController: NSWindowController, NSCollectionViewDataSou
         statusResetWorkItem?.cancel()
         statusResetWorkItem = nil
 
-        let visible = store.entries(matching: filter)
+        visibleEntries = store.entries(matching: filter)
         collectionView.reloadData()
 
-        let isEmpty = visible.isEmpty
+        let isEmpty = visibleEntries.isEmpty
         collectionView.isHidden = isEmpty
         contentView.emptyLabel.isHidden = !isEmpty
         contentView.emptyHint.isHidden = !isEmpty
@@ -146,7 +147,7 @@ final class HistoryWindowController: NSWindowController, NSCollectionViewDataSou
         }
         contentView.clearButton.isEnabled = !store.entries.isEmpty
         contentView.exportButton.isEnabled = !store.entries.isEmpty
-        restoreCountLabel(visibleCount: visible.count)
+        restoreCountLabel(visibleCount: visibleEntries.count)
 
         rebuildTabStrip()
         updateItemSize()
@@ -157,12 +158,25 @@ final class HistoryWindowController: NSWindowController, NSCollectionViewDataSou
         contentView.tabStack.arrangedSubviews.forEach { $0.removeFromSuperview() }
 
         let allButton = tabButton(title: "全部", tabName: nil)
-        allButton.state = selectedTab == nil ? .on : .off
+        styleTabButton(allButton, selected: selectedTab == nil)
         contentView.tabStack.addArrangedSubview(allButton)
         for tab in store.tabs {
             let button = tabButton(title: tab, tabName: tab)
-            button.state = selectedTab == tab ? .on : .off
+            styleTabButton(button, selected: selectedTab == tab)
             contentView.tabStack.addArrangedSubview(button)
+        }
+    }
+
+    /// Chip styling so tab boundaries and the selected tab read clearly.
+    private func styleTabButton(_ button: NSButton, selected: Bool) {
+        button.wantsLayer = true
+        button.layer?.cornerRadius = 6
+        if selected {
+            button.layer?.backgroundColor = NSColor.controlAccentColor.cgColor
+            button.contentTintColor = .white
+        } else {
+            button.layer?.backgroundColor = NSColor.labelColor.withAlphaComponent(0.08).cgColor
+            button.contentTintColor = .secondaryLabelColor
         }
     }
 
@@ -171,9 +185,9 @@ final class HistoryWindowController: NSWindowController, NSCollectionViewDataSou
         button.isBordered = false
         button.controlSize = .small
         button.font = .systemFont(ofSize: 11, weight: .medium)
-        button.contentTintColor = .labelColor
+        button.contentTintColor = .secondaryLabelColor
         button.identifier = NSUserInterfaceItemIdentifier(tabName ?? "__all__")
-        button.setButtonType(.momentaryChange)
+        button.setButtonType(.momentaryPushIn)
         button.lineBreakMode = .byTruncatingTail
 
         let menu = NSMenu()
@@ -253,11 +267,11 @@ final class HistoryWindowController: NSWindowController, NSCollectionViewDataSou
     // MARK: - Collection view
 
     func collectionView(_ collectionView: NSCollectionView, numberOfItemsInSection section: Int) -> Int {
-        store.entries.count
+        visibleEntries.count
     }
 
     func collectionView(_ collectionView: NSCollectionView, itemForRepresentedObjectAt indexPath: IndexPath) -> NSCollectionViewItem {
-        let entry = store.entries[indexPath.item]
+        let entry = visibleEntries[indexPath.item]
         let item = collectionView.makeItem(
             withIdentifier: HistoryItem.identifier,
             for: indexPath
