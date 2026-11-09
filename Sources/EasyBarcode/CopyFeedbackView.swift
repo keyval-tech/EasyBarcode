@@ -6,6 +6,7 @@ import QuartzCore
 /// covered by an opaque pill so the label stays readable.
 final class CopyFeedbackView: NSGlassEffectView {
     private let label = NSTextField(labelWithString: "已复制")
+    private let solidPill = NSView()
     private var resetWorkItem: DispatchWorkItem?
 
     convenience init() {
@@ -31,10 +32,23 @@ final class CopyFeedbackView: NSGlassEffectView {
 
         let content = NSView()
         content.translatesAutoresizingMaskIntoConstraints = false
+
+        solidPill.translatesAutoresizingMaskIntoConstraints = false
+        solidPill.wantsLayer = true
+        solidPill.layer?.cornerRadius = 15
+        solidPill.layer?.backgroundColor = NSColor.white.cgColor
+        solidPill.layer?.borderWidth = 1
+        solidPill.layer?.borderColor = NSColor.black.withAlphaComponent(0.10).cgColor
+        solidPill.isHidden = true
+        content.addSubview(solidPill)
         content.addSubview(label)
         contentView = content
 
         NSLayoutConstraint.activate([
+            solidPill.leadingAnchor.constraint(equalTo: content.leadingAnchor),
+            solidPill.trailingAnchor.constraint(equalTo: content.trailingAnchor),
+            solidPill.topAnchor.constraint(equalTo: content.topAnchor),
+            solidPill.bottomAnchor.constraint(equalTo: content.bottomAnchor),
             content.leadingAnchor.constraint(equalTo: leadingAnchor),
             content.trailingAnchor.constraint(equalTo: trailingAnchor),
             content.topAnchor.constraint(equalTo: topAnchor),
@@ -66,18 +80,16 @@ final class CopyFeedbackView: NSGlassEffectView {
     }
 
     @objc private func refreshTint() {
-        // The glass material follows the SYSTEM appearance and ignores
-        // appearance overrides, so in forced light/dark modes cover it with
-        // an opaque pill matching the mode; in system mode let it adapt.
-        if AppSettings.appearanceMode == .system {
-            layer?.backgroundColor = nil
-            label.textColor = .labelColor
+        // The pill always sits on a white image card. In system mode the
+        // glass material adapts to the system and semantic colours work; in
+        // forced modes tint the glass light and use dark text so the label
+        // stays readable regardless of the system appearance.
+        let pinned = AppSettings.appearanceMode != .system
+        solidPill.isHidden = !pinned
+        if pinned {
+            label.textColor = NSColor(white: 0.12, alpha: 1)
         } else {
-            let dark = AppSettings.appearanceMode == .dark
-            layer?.backgroundColor = (dark
-                ? NSColor(white: 0.16, alpha: 1)
-                : NSColor.white).cgColor
-            label.textColor = dark ? .white : .labelColor
+            label.textColor = .labelColor
         }
     }
 

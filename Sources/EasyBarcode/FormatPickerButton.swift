@@ -80,9 +80,11 @@ final class FormatPickerButton: NSButton {
 
     private func updateAppearance() {
         title = selectedFormat.displayName
-        layer?.backgroundColor = NSColor.labelColor
-            .withAlphaComponent(isHovered ? 0.10 : 0.06)
-            .cgColor
+        withEffectiveAppearance {
+            layer?.backgroundColor = NSColor.labelColor
+                .withAlphaComponent(isHovered ? 0.10 : 0.06)
+                .cgColor
+        }
     }
 
     private func buildMenu() {

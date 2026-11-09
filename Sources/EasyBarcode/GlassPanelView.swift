@@ -17,6 +17,8 @@ final class GlassPanelView: NSView {
         }
     }
 
+    let solidBackground = SolidBackgroundView()
+
     @objc private func applyGlassMode() {
         // The glass material follows the SYSTEM appearance and ignores
         // NSApp/window/view overrides, so a forced light/dark would render
@@ -24,9 +26,12 @@ final class GlassPanelView: NSView {
         // look whenever the user pins the appearance.
         let useGlassNow = glassEnabled && AppSettings.appearanceMode == .system
         glass.isHidden = !useGlassNow
-        layer?.backgroundColor = useGlassNow
-            ? nil
-            : NSColor.windowBackgroundColor.cgColor
+        solidBackground.isHidden = useGlassNow
+    }
+
+    override func viewDidChangeEffectiveAppearance() {
+        super.viewDidChangeEffectiveAppearance()
+        applyGlassMode()
     }
 
     override init(frame frameRect: NSRect) {
@@ -72,6 +77,15 @@ final class GlassPanelView: NSView {
             glass.trailingAnchor.constraint(equalTo: trailingAnchor),
             glass.topAnchor.constraint(equalTo: topAnchor),
             glass.bottomAnchor.constraint(equalTo: bottomAnchor)
+        ])
+
+        solidBackground.translatesAutoresizingMaskIntoConstraints = false
+        addSubview(solidBackground)
+        NSLayoutConstraint.activate([
+            solidBackground.leadingAnchor.constraint(equalTo: leadingAnchor),
+            solidBackground.trailingAnchor.constraint(equalTo: trailingAnchor),
+            solidBackground.topAnchor.constraint(equalTo: topAnchor),
+            solidBackground.bottomAnchor.constraint(equalTo: bottomAnchor)
         ])
 
         content.translatesAutoresizingMaskIntoConstraints = false
@@ -292,7 +306,9 @@ final class GlassPanelView: NSView {
         if image == nil {
             placeholderLabel.isHidden = false
             placeholderLabel.stringValue = placeholder
-            placeholderLabel.textColor = payload?.error != nil ? .systemOrange : .secondaryLabelColor
+            placeholderLabel.textColor = payload?.error != nil
+                ? .systemOrange
+                : NSColor(white: 0.45, alpha: 1)
         } else {
             placeholderLabel.isHidden = true
         }
@@ -304,5 +320,34 @@ final class GlassPanelView: NSView {
     func setStatus(_ text: String, color: NSColor) {
         statusLabel.stringValue = text
         statusLabel.textColor = color
+    }
+}
+
+
+/// Opaque stand-in for the glass surface when the user pins light/dark. It
+/// resolves `windowBackgroundColor` in `updateLayer`, so the colour always
+/// matches the current effective appearance (a `cgColor` captured at init
+/// would keep the old appearance's colour).
+final class SolidBackgroundView: NSView {
+    override init(frame frameRect: NSRect) {
+        super.init(frame: frameRect)
+        wantsLayer = true
+    }
+
+    required init?(coder: NSCoder) {
+        fatalError("init(coder:) has not been implemented")
+    }
+
+    override var isOpaque: Bool { true }
+
+    override var wantsUpdateLayer: Bool { true }
+
+    override func updateLayer() {
+        layer?.backgroundColor = NSColor.windowBackgroundColor.cgColor
+    }
+
+    override func viewDidChangeEffectiveAppearance() {
+        super.viewDidChangeEffectiveAppearance()
+        needsDisplay = true
     }
 }

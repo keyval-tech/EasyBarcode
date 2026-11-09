@@ -200,8 +200,10 @@ final class HistoryItem: NSCollectionViewItem {
     }
 
     private func updateAppearance() {
-        cardView.layer?.backgroundColor = NSColor.controlBackgroundColor.cgColor
-        cardView.layer?.borderColor = NSColor.separatorColor.cgColor
+        cardView.withEffectiveAppearance {
+            cardView.layer?.backgroundColor = NSColor.controlBackgroundColor.cgColor
+            cardView.layer?.borderColor = NSColor.separatorColor.cgColor
+        }
     }
 
     private static func image(for entry: HistoryEntry) -> NSImage? {

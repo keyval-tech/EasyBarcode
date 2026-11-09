@@ -20,7 +20,7 @@ final class PreferencesWindowController: NSWindowController {
         loginCheckbox = NSButton(checkboxWithTitle: "登录时自动启动 EasyBarcode", target: nil, action: nil)
 
         let window = NSWindow(
-            contentRect: NSRect(x: 0, y: 0, width: 440, height: 430),
+            contentRect: NSRect(x: 0, y: 0, width: 440, height: 448),
             styleMask: [.titled, .closable],
             backing: .buffered,
             defer: false
@@ -115,8 +115,20 @@ final class PreferencesWindowController: NSWindowController {
 
         glassCheckbox.font = .systemFont(ofSize: 13)
         glassCheckbox.state = AppSettings.useGlass ? .on : .off
+        // The glass material can only follow the system appearance, so the
+        // switch has no effect while a fixed appearance is selected.
+        glassCheckbox.isEnabled = AppSettings.appearanceMode == .system
         glassCheckbox.target = self
         glassCheckbox.action = #selector(toggleGlass)
+
+        let glassHint = NSTextField(
+            labelWithString: "玻璃材质只跟随系统外观；选择浅色或深色时主窗口使用标准背景。"
+        )
+        glassHint.font = .systemFont(ofSize: 11)
+        glassHint.textColor = .secondaryLabelColor
+        glassHint.maximumNumberOfLines = 2
+        glassHint.lineBreakMode = .byWordWrapping
+        glassHint.preferredMaxLayoutWidth = 380
 
         let imagesTitle = NSTextField(labelWithString: "历史图片目录")
         imagesTitle.font = .systemFont(ofSize: 13, weight: .semibold)
@@ -168,6 +180,7 @@ final class PreferencesWindowController: NSWindowController {
             appearanceTitle,
             appearanceRow,
             glassCheckbox,
+            glassHint,
             imagesTitle,
             imagesRow,
             imagesHint,
@@ -186,6 +199,8 @@ final class PreferencesWindowController: NSWindowController {
         stack.setCustomSpacing(18, after: shortcutHint)
         stack.setCustomSpacing(8, after: appearanceTitle)
         stack.setCustomSpacing(16, after: appearanceRow)
+        stack.setCustomSpacing(4, after: glassCheckbox)
+        stack.setCustomSpacing(8, after: glassHint)
         stack.setCustomSpacing(8, after: imagesTitle)
         stack.setCustomSpacing(6, after: imagesRow)
         stack.setCustomSpacing(18, after: imagesHint)
@@ -234,6 +249,7 @@ final class PreferencesWindowController: NSWindowController {
         guard modes.indices.contains(index) else { return }
         AppSettings.appearanceMode = modes[index]
         AppSettings.applyAppearance()
+        glassCheckbox.isEnabled = modes[index] == .system
     }
 
     @objc private func toggleGlass() {

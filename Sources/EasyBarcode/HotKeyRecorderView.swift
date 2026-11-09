@@ -120,13 +120,17 @@ final class HotKeyRecorderView: NSView {
         if isRecording {
             label.stringValue = "按下快捷键…"
             label.textColor = .controlAccentColor
-            layer?.backgroundColor = NSColor.controlAccentColor.withAlphaComponent(0.12).cgColor
-            layer?.borderColor = NSColor.controlAccentColor.cgColor
+            withEffectiveAppearance {
+                layer?.backgroundColor = NSColor.controlAccentColor.withAlphaComponent(0.12).cgColor
+                layer?.borderColor = NSColor.controlAccentColor.cgColor
+            }
         } else {
             label.stringValue = config.displayString
             label.textColor = .labelColor
-            layer?.backgroundColor = NSColor.controlBackgroundColor.cgColor
-            layer?.borderColor = NSColor.separatorColor.cgColor
+            withEffectiveAppearance {
+                layer?.backgroundColor = NSColor.controlBackgroundColor.cgColor
+                layer?.borderColor = NSColor.separatorColor.cgColor
+            }
         }
     }
 }

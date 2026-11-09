@@ -162,12 +162,12 @@ final class HistoryWindowController: NSWindowController, NSCollectionViewDataSou
         contentView.tabStack.arrangedSubviews.forEach { $0.removeFromSuperview() }
 
         let allButton = tabButton(title: "全部", tabName: nil)
-        styleTabButton(allButton, selected: selectedTab == nil)
         contentView.tabStack.addArrangedSubview(allButton)
+        styleTabButton(allButton, selected: selectedTab == nil)
         for tab in store.tabs {
             let button = tabButton(title: tab, tabName: tab)
-            styleTabButton(button, selected: selectedTab == tab)
             contentView.tabStack.addArrangedSubview(button)
+            styleTabButton(button, selected: selectedTab == tab)
         }
     }
 
@@ -176,10 +176,14 @@ final class HistoryWindowController: NSWindowController, NSCollectionViewDataSou
         button.wantsLayer = true
         button.layer?.cornerRadius = 6
         if selected {
-            button.layer?.backgroundColor = NSColor.controlAccentColor.cgColor
+            button.withEffectiveAppearance {
+                button.layer?.backgroundColor = NSColor.controlAccentColor.cgColor
+            }
             button.contentTintColor = .white
         } else {
-            button.layer?.backgroundColor = NSColor.labelColor.withAlphaComponent(0.08).cgColor
+            button.withEffectiveAppearance {
+                button.layer?.backgroundColor = NSColor.labelColor.withAlphaComponent(0.08).cgColor
+            }
             button.contentTintColor = .secondaryLabelColor
         }
     }
