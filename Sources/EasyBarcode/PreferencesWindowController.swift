@@ -234,7 +234,7 @@ final class PreferencesWindowController: NSWindowController {
 
     private var versionString: String {
         let version = Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "1.0.0"
-        return "EasyBarcode \(version) · 需要 macOS 15 或更高版本"
+        return "EasyBarcode \(version) · 需要 macOS 26 或更高版本"
     }
 
     private func refreshLoginState() {

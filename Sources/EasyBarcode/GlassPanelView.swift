@@ -53,10 +53,17 @@ final class GlassPanelView: NSView {
     let previewCard = NSView()
     let previewView = BarcodePreviewView()
     let placeholderLabel = NSTextField(labelWithString: "输入数字，按 ⏎ 生成条码")
-    let hintLabel = NSTextField(labelWithString: "⏎ 复制 · Tab 切换格式 · ⌘W 关闭")
+    let hintLabel = NSTextField(labelWithString: "⏎ 生成并复制 · Tab 切换格式 · ⌘W 关闭")
     let historyButton = NSButton()
     let copyFeedback = CopyFeedbackView()
-    let buttonContainer = NSView()
+    private(set) var buttonContainer: NSView = {
+        if #available(macOS 26.0, *) {
+            let container = NSGlassEffectContainerView()
+            container.spacing = 0
+            return container
+        }
+        return NSView()
+    }()
     let buttonStack = NSStackView()
 
     required init?(coder: NSCoder) {
@@ -215,7 +222,11 @@ final class GlassPanelView: NSView {
         buttonStack.addArrangedSubview(historyButton)
 
         buttonContainer.translatesAutoresizingMaskIntoConstraints = false
-        buttonContainer.addSubview(buttonStack)
+        if #available(macOS 26.0, *), let glassContainer = buttonContainer as? NSGlassEffectContainerView {
+            glassContainer.contentView = buttonStack
+        } else {
+            buttonContainer.addSubview(buttonStack)
+        }
         content.addSubview(buttonContainer)
 
         NSLayoutConstraint.activate([
@@ -226,18 +237,13 @@ final class GlassPanelView: NSView {
             buttonContainer.widthAnchor.constraint(equalToConstant: 38),
             buttonContainer.heightAnchor.constraint(equalToConstant: 30)
         ])
+
     }
 
-    private func configureGlassButton(
-        _ button: NSButton,
-        symbol: String,
-        label: String,
-        emphasized: Bool = false
-    ) {
+    private func configureGlassButton(_ button: NSButton, symbol: String, label: String) {
         button.translatesAutoresizingMaskIntoConstraints = false
         if #available(macOS 26.0, *) {
             button.bezelStyle = .glass
-            button.tintProminence = emphasized ? .primary : .secondary
         } else {
             button.bezelStyle = .texturedRounded
         }
@@ -247,6 +253,9 @@ final class GlassPanelView: NSView {
         button.imagePosition = .imageOnly
         button.toolTip = label
         button.setAccessibilityLabel(label)
+        if #available(macOS 26.0, *) {
+            button.tintProminence = .secondary
+        }
         button.isEnabled = false
         NSLayoutConstraint.activate([
             button.widthAnchor.constraint(equalToConstant: 38),

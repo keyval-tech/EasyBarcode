@@ -1,6 +1,8 @@
 # EasyBarcode
 
-macOS 15 及以上（macOS 26 / 27 上提供原生 Liquid Glass 质感）的原生条码生成小工具。常驻菜单栏，按 `⌥B` 显示/隐藏主窗口，按 `⌥H`（应用内）打开/关闭历史窗口；输入数字后按 `⏎` 生成条码并复制，生成记录会进入历史（带条码图片、备注，可单条删除）。
+macOS 26 / 27 上的原生条码生成小工具。常驻菜单栏，按 `⌥B` 显示/隐藏主窗口，按 `⌥H`（应用内）打开/关闭历史窗口；输入数字后按 `⏎` 生成条码并复制，生成记录会进入历史（带条码图片、备注，可单条删除）。
+
+<img src="docs/screenshot.png" width="720" alt="EasyBarcode 主窗口与历史记录窗口">
 
 ## 功能
 
@@ -32,11 +34,11 @@ macOS 15 及以上（macOS 26 / 27 上提供原生 Liquid Glass 质感）的原�
   - **ZIP 图片包**：全部历史条码图打包成一个 .zip，文件名 `{格式}_{code}.png`（如 `EAN-13_6901234567892.png`），Markdown 的图片文件夹也使用同一命名；无法作为文件名的字符（`/ \ : * ? " < > |` 等）会转换为 `_`，重名自动加 `-2`、`-3` 后缀
 - **设置**：菜单栏「设置」里可分别修改全局（主窗口）与应用内（历史记录）快捷键，打开 / 选择 / 恢复历史图片目录，以及登录时启动。
 - **普通窗口**：标准标题栏、红黄绿按钮，可移动、缩放、最小化、关闭；失去焦点不会消失，再次按快捷键显隐。最小尺寸 300 × 335（此时预览图约 230 × 120）。
-- **Liquid Glass**：macOS 26+ 使用 `NSGlassEffectView` 原生玻璃背景，自动适配浅色/深色外观；静态玻璃，点击无回弹。macOS 15–25 使用标准背景（玻璃开关置灰并在设置中注明）。
+- **Liquid Glass**：`NSGlassEffectView` 原生玻璃背景，自动适配浅色/深色外观；静态玻璃，点击无回弹。
 
 ## 系统要求
 
-- 运行：macOS 15 及以上；Liquid Glass 玻璃质感需要 macOS 26 或 27（更低版本自动使用标准背景，设置里会说明）。
+- 运行：macOS 26 或 macOS 27。
 - 构建：Xcode 26+（当前使用 Xcode 27.2 / Swift 6.4）。
 
 ## 构建与安装
@@ -78,7 +80,7 @@ App 二进制内置渲染命令，便于脚本或批量生成：
 
 ## 实现说明
 
-- SwiftPM + AppKit，部署目标 `macOS 15.0`；玻璃相关 API 用 `#available(macOS 26, *)` 隔离，15–25 上走现有不透明背景路径。
+- SwiftPM + AppKit，部署目标 `macOS 26.0`。
 - 窗口为普通 `NSWindow`（`.titled, .closable, .miniaturizable, .resizable, .fullSizeContentView`），内容使用 Liquid Glass（26+ 的 `NSGlassEffectView`，由 `LiquidGlassBackdrop` 包装）。
 - 玻璃为**静态**：没有开启 macOS 27 的 `effectIsInteractive`，因此点击窗口不会有回弹/果冻效果。
 - 主窗口使用 Carbon `RegisterEventHotKey` 注册全局热键（默认 `⌥B`）；历史记录使用应用内 keyDown 本地监听（默认 `⌥H`），只有 EasyBarcode 激活时才响应，不会抢占其他 App 的按键。两个快捷键均可在设置中修改。唤起窗口使用 `NSRunningApplication.current.activate(options: [.activateAllWindows])`。
