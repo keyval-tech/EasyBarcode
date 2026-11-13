@@ -135,6 +135,13 @@ final class HistoryStoreTabTests: XCTestCase {
         XCTAssertNil(reopened.entries[0].tabs, "legacy entries decode without tabs")
     }
 
+    func testTabCycleWrapsAround() {
+        XCTAssertEqual(HistoryWindowController.nextIndex(current: 0, count: 3, backwards: false), 1)
+        XCTAssertEqual(HistoryWindowController.nextIndex(current: 2, count: 3, backwards: false), 0)
+        XCTAssertEqual(HistoryWindowController.nextIndex(current: 0, count: 3, backwards: true), 2)
+        XCTAssertEqual(HistoryWindowController.nextIndex(current: 0, count: 1, backwards: false), 0)
+    }
+
     @MainActor
     func testRecordingSameCodeKeepsNoteAndTags() {
         seedThreeEntries()

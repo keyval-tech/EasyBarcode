@@ -14,6 +14,7 @@ final class HistoryWindowController: NSWindowController, NSCollectionViewDataSou
     private var filter = HistoryFilter()
     private var selectedTab: String?
     private var visibleEntries: [HistoryEntry] = []
+    private var tabKeyMonitor: Any?
 
     private static let exportDateFormatter: DateFormatter = {
         let formatter = DateFormatter()
@@ -60,6 +61,13 @@ final class HistoryWindowController: NSWindowController, NSCollectionViewDataSou
 
         buildContent()
         reload()
+        installTabKeyMonitor()
+    }
+
+    deinit {
+        if let tabKeyMonitor {
+            NSEvent.removeMonitor(tabKeyMonitor)
+        }
     }
 
     required init?(coder: NSCoder) {
@@ -335,6 +343,44 @@ final class HistoryWindowController: NSWindowController, NSCollectionViewDataSou
         let ranges = HistoryTimeRange.allCases
         filter.timeRange = ranges.indices.contains(index) ? ranges[index] : .all
         reload()
+    }
+
+    /// Tab / Shift-Tab cycles the tag strip while this window is key, so the
+    /// categories can be browsed without reaching for the mouse. Text editing
+    /// still saves on every keystroke, so switching mid-note is safe.
+    private func installTabKeyMonitor() {
+        guard tabKeyMonitor == nil else { return }
+
+        tabKeyMonitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { [weak self] event in
+            guard let self, let window = self.window else { return event }
+            guard window.isKeyWindow, window.attachedSheet == nil else { return event }
+            guard event.keyCode == 48 else { return event }
+            guard !HotKeyRecorderView.isRecordingAny else { return event }
+            // Leave ⌘/⌥/⌃ combinations to the system.
+            let modifiers = event.modifierFlags.intersection([.command, .option, .control])
+            guard modifiers.isEmpty else { return event }
+
+            self.cycleSelectedTab(backwards: event.modifierFlags.contains(.shift))
+            return nil
+        }
+    }
+
+    /// Cycles 全部 → first tab → … → 全部 (reverse with Shift).
+    private func cycleSelectedTab(backwards: Bool) {
+        let tabs: [String?] = [nil] + store.tabs
+        guard tabs.count > 1 else { return }
+
+        let current = tabs.firstIndex(of: selectedTab) ?? 0
+        let next = Self.nextIndex(current: current, count: tabs.count, backwards: backwards)
+        selectedTab = tabs[next]
+        filter.tab = selectedTab
+        reload()
+    }
+
+    static func nextIndex(current: Int, count: Int, backwards: Bool) -> Int {
+        guard count > 0 else { return 0 }
+        let delta = backwards ? -1 : 1
+        return ((current + delta) % count + count) % count
     }
 
     @objc private func tabSelected(_ sender: NSButton) {
