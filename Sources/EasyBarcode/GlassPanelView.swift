@@ -6,7 +6,7 @@ import BarcodeKit
 /// `NSGlassEffectView` only guarantees that its `contentView` is hosted inside
 /// the glass, so the complete UI lives in that one subtree.
 final class GlassPanelView: NSView {
-    let glass = NSGlassEffectView()
+    let glass = LiquidGlassBackdrop()
     let content = NSView()
 
     /// Toggled from 设置 › 外观; off renders an opaque standard background.
@@ -24,7 +24,7 @@ final class GlassPanelView: NSView {
         // NSApp/window/view overrides, so a forced light/dark would render
         // mismatched text and background. Fall back to the opaque standard
         // look whenever the user pins the appearance.
-        let useGlassNow = glassEnabled && AppSettings.appearanceMode == .system
+        let useGlassNow = glassEnabled && GlassSupport.isRenderable
         glass.isHidden = !useGlassNow
         solidBackground.isHidden = useGlassNow
     }
@@ -56,7 +56,7 @@ final class GlassPanelView: NSView {
     let hintLabel = NSTextField(labelWithString: "⏎ 复制 · Tab 切换格式 · ⌘W 关闭")
     let historyButton = NSButton()
     let copyFeedback = CopyFeedbackView()
-    let buttonContainer = NSGlassEffectContainerView()
+    let buttonContainer = NSView()
     let buttonStack = NSStackView()
 
     required init?(coder: NSCoder) {
@@ -69,8 +69,6 @@ final class GlassPanelView: NSView {
         wantsLayer = true
 
         glass.translatesAutoresizingMaskIntoConstraints = false
-        glass.style = .regular
-        glass.cornerRadius = 0
         addSubview(glass)
         NSLayoutConstraint.activate([
             glass.leadingAnchor.constraint(equalTo: leadingAnchor),
@@ -205,8 +203,7 @@ final class GlassPanelView: NSView {
         configureGlassButton(
             historyButton,
             symbol: "clock.arrow.circlepath",
-            label: "历史记录",
-            prominence: .secondary
+            label: "历史记录"
         )
         historyButton.isEnabled = true
 
@@ -218,8 +215,7 @@ final class GlassPanelView: NSView {
         buttonStack.addArrangedSubview(historyButton)
 
         buttonContainer.translatesAutoresizingMaskIntoConstraints = false
-        buttonContainer.spacing = 0
-        buttonContainer.contentView = buttonStack
+        buttonContainer.addSubview(buttonStack)
         content.addSubview(buttonContainer)
 
         NSLayoutConstraint.activate([
@@ -236,17 +232,21 @@ final class GlassPanelView: NSView {
         _ button: NSButton,
         symbol: String,
         label: String,
-        prominence: NSTintProminence
+        emphasized: Bool = false
     ) {
         button.translatesAutoresizingMaskIntoConstraints = false
-        button.bezelStyle = .glass
+        if #available(macOS 26.0, *) {
+            button.bezelStyle = .glass
+            button.tintProminence = emphasized ? .primary : .secondary
+        } else {
+            button.bezelStyle = .texturedRounded
+        }
         button.isBordered = true
         button.title = ""
         button.image = NSImage(systemSymbolName: symbol, accessibilityDescription: label)
         button.imagePosition = .imageOnly
         button.toolTip = label
         button.setAccessibilityLabel(label)
-        button.tintProminence = prominence
         button.isEnabled = false
         NSLayoutConstraint.activate([
             button.widthAnchor.constraint(equalToConstant: 38),

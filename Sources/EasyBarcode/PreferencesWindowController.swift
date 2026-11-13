@@ -117,12 +117,15 @@ final class PreferencesWindowController: NSWindowController {
         glassCheckbox.state = AppSettings.useGlass ? .on : .off
         // The glass material can only follow the system appearance, so the
         // switch has no effect while a fixed appearance is selected.
-        glassCheckbox.isEnabled = AppSettings.appearanceMode == .system
+        glassCheckbox.isEnabled = GlassSupport.isAvailable
+            && AppSettings.appearanceMode == .system
         glassCheckbox.target = self
         glassCheckbox.action = #selector(toggleGlass)
 
         let glassHint = NSTextField(
-            labelWithString: "玻璃材质只跟随系统外观；选择浅色或深色时主窗口使用标准背景。"
+            labelWithString: GlassSupport.isAvailable
+                ? "玻璃材质只跟随系统外观；选择浅色或深色时主窗口使用标准背景。"
+                : "当前系统不支持 Liquid Glass，主窗口使用标准背景。"
         )
         glassHint.font = .systemFont(ofSize: 11)
         glassHint.textColor = .secondaryLabelColor
@@ -231,7 +234,7 @@ final class PreferencesWindowController: NSWindowController {
 
     private var versionString: String {
         let version = Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "1.0.0"
-        return "EasyBarcode \(version) · 需要 macOS 26 或更高版本"
+        return "EasyBarcode \(version) · 需要 macOS 15 或更高版本"
     }
 
     private func refreshLoginState() {
@@ -249,7 +252,7 @@ final class PreferencesWindowController: NSWindowController {
         guard modes.indices.contains(index) else { return }
         AppSettings.appearanceMode = modes[index]
         AppSettings.applyAppearance()
-        glassCheckbox.isEnabled = modes[index] == .system
+        glassCheckbox.isEnabled = GlassSupport.isAvailable && modes[index] == .system
     }
 
     @objc private func toggleGlass() {

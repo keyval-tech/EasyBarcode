@@ -1,12 +1,14 @@
 import AppKit
 import QuartzCore
 
-/// The shared Liquid Glass "已复制" feedback used by both the history cards
-/// and the main preview. In forced light/dark modes the glass material is
-/// covered by an opaque pill so the label stays readable.
-final class CopyFeedbackView: NSGlassEffectView {
-    private let label = NSTextField(labelWithString: "已复制")
+/// The shared "已复制" feedback used by both the history cards and the main
+/// preview. It sits on an always-white image card: on macOS 26 in
+/// follow-system mode it is a Liquid Glass capsule, otherwise an opaque white
+/// pill with dark text (readable regardless of the system appearance).
+final class CopyFeedbackView: NSView {
+    private let glass = LiquidGlassBackdrop()
     private let solidPill = NSView()
+    private let label = NSTextField(labelWithString: "已复制")
     private var resetWorkItem: DispatchWorkItem?
 
     convenience init() {
@@ -16,9 +18,19 @@ final class CopyFeedbackView: NSGlassEffectView {
     override init(frame frameRect: NSRect) {
         super.init(frame: frameRect)
 
-        style = .regular
-        cornerRadius = 15
+        wantsLayer = true
+        layer?.cornerRadius = 15
         isHidden = true
+
+        glass.cornerRadius = 15
+        glass.translatesAutoresizingMaskIntoConstraints = false
+
+        solidPill.translatesAutoresizingMaskIntoConstraints = false
+        solidPill.wantsLayer = true
+        solidPill.layer?.cornerRadius = 15
+        solidPill.layer?.backgroundColor = NSColor.white.cgColor
+        solidPill.layer?.borderWidth = 1
+        solidPill.layer?.borderColor = NSColor.black.withAlphaComponent(0.10).cgColor
 
         label.isBordered = false
         label.drawsBackground = false
@@ -30,31 +42,21 @@ final class CopyFeedbackView: NSGlassEffectView {
         label.usesSingleLineMode = true
         label.translatesAutoresizingMaskIntoConstraints = false
 
-        let content = NSView()
-        content.translatesAutoresizingMaskIntoConstraints = false
-
-        solidPill.translatesAutoresizingMaskIntoConstraints = false
-        solidPill.wantsLayer = true
-        solidPill.layer?.cornerRadius = 15
-        solidPill.layer?.backgroundColor = NSColor.white.cgColor
-        solidPill.layer?.borderWidth = 1
-        solidPill.layer?.borderColor = NSColor.black.withAlphaComponent(0.10).cgColor
-        solidPill.isHidden = true
-        content.addSubview(solidPill)
-        content.addSubview(label)
-        contentView = content
+        addSubview(glass)
+        addSubview(solidPill)
+        addSubview(label)
 
         NSLayoutConstraint.activate([
-            solidPill.leadingAnchor.constraint(equalTo: content.leadingAnchor),
-            solidPill.trailingAnchor.constraint(equalTo: content.trailingAnchor),
-            solidPill.topAnchor.constraint(equalTo: content.topAnchor),
-            solidPill.bottomAnchor.constraint(equalTo: content.bottomAnchor),
-            content.leadingAnchor.constraint(equalTo: leadingAnchor),
-            content.trailingAnchor.constraint(equalTo: trailingAnchor),
-            content.topAnchor.constraint(equalTo: topAnchor),
-            content.bottomAnchor.constraint(equalTo: bottomAnchor),
-            label.centerXAnchor.constraint(equalTo: content.centerXAnchor),
-            label.centerYAnchor.constraint(equalTo: content.centerYAnchor)
+            glass.leadingAnchor.constraint(equalTo: leadingAnchor),
+            glass.trailingAnchor.constraint(equalTo: trailingAnchor),
+            glass.topAnchor.constraint(equalTo: topAnchor),
+            glass.bottomAnchor.constraint(equalTo: bottomAnchor),
+            solidPill.leadingAnchor.constraint(equalTo: leadingAnchor),
+            solidPill.trailingAnchor.constraint(equalTo: trailingAnchor),
+            solidPill.topAnchor.constraint(equalTo: topAnchor),
+            solidPill.bottomAnchor.constraint(equalTo: bottomAnchor),
+            label.centerXAnchor.constraint(equalTo: centerXAnchor),
+            label.centerYAnchor.constraint(equalTo: centerYAnchor)
         ])
 
         refreshTint()
@@ -80,17 +82,10 @@ final class CopyFeedbackView: NSGlassEffectView {
     }
 
     @objc private func refreshTint() {
-        // The pill always sits on a white image card. In system mode the
-        // glass material adapts to the system and semantic colours work; in
-        // forced modes tint the glass light and use dark text so the label
-        // stays readable regardless of the system appearance.
-        let pinned = AppSettings.appearanceMode != .system
-        solidPill.isHidden = !pinned
-        if pinned {
-            label.textColor = NSColor(white: 0.12, alpha: 1)
-        } else {
-            label.textColor = .labelColor
-        }
+        let useGlass = GlassSupport.isRenderable
+        glass.isHidden = !useGlass
+        solidPill.isHidden = useGlass
+        label.textColor = useGlass ? .labelColor : NSColor(white: 0.12, alpha: 1)
     }
 
     func show() {
