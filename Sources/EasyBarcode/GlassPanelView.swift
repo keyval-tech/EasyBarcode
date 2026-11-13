@@ -53,7 +53,7 @@ final class GlassPanelView: NSView {
     let previewCard = NSView()
     let previewView = BarcodePreviewView()
     let placeholderLabel = NSTextField(labelWithString: "输入数字，按 ⏎ 生成条码")
-    let hintLabel = NSTextField(labelWithString: "⏎ / 点击图片复制   ⌘W 关闭")
+    let hintLabel = NSTextField(labelWithString: "⏎ 复制 · Tab 切换格式 · ⌘W 关闭")
     let historyButton = NSButton()
     let copyFeedback = CopyFeedbackView()
     let buttonContainer = NSGlassEffectContainerView()

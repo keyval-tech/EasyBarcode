@@ -86,13 +86,24 @@ final class HistoryStore {
     // MARK: - Entries
 
     func record(digits: String, format: BarcodeFormat) {
-        var entry = HistoryEntry(id: UUID(), digits: digits, format: format, createdAt: Date())
-        attachImage(to: &entry)
+        // Regenerating an existing code refreshes that record instead of
+        // replacing it: keep its id, note and tags, move it back to the top
+        // and stamp the new generation time.
+        let duplicate = entries.first { $0.digits == digits && $0.format == format }
+        var entry = HistoryEntry(
+            id: duplicate?.id ?? UUID(),
+            digits: digits,
+            format: format,
+            createdAt: Date(),
+            note: duplicate?.note,
+            tabs: duplicate?.tabs
+        )
 
-        if let duplicate = entries.first(where: { $0.digits == digits && $0.format == format }) {
+        if let duplicate {
             removeImage(for: duplicate)
+            entries.removeAll { $0.id == duplicate.id }
         }
-        entries.removeAll { $0.digits == digits && $0.format == format }
+        attachImage(to: &entry)
         entries.insert(entry, at: 0)
         if entries.count > maxEntries {
             let removed = entries.suffix(entries.count - maxEntries)

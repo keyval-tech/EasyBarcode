@@ -521,7 +521,8 @@ final class HistoryWindowController: NSWindowController, NSCollectionViewDataSou
                 formatName: entry.format.displayName,
                 dateString: dateFormatter.string(from: entry.createdAt),
                 note: entry.note,
-                pngData: pngData
+                pngData: pngData,
+                tabs: entry.tabs ?? []
             )
         }
 

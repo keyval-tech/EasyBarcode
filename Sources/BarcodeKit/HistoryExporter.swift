@@ -11,13 +11,23 @@ public struct HistoryExportRow: Sendable {
     public let note: String?
     /// PNG bytes for the barcode image; `nil` leaves the image cell empty.
     public let pngData: Data?
+    /// User-defined tags; an entry may carry several.
+    public let tabs: [String]
 
-    public init(text: String, formatName: String, dateString: String, note: String?, pngData: Data?) {
+    public init(
+        text: String,
+        formatName: String,
+        dateString: String,
+        note: String?,
+        pngData: Data?,
+        tabs: [String] = []
+    ) {
         self.text = text
         self.formatName = formatName
         self.dateString = dateString
         self.note = note
         self.pngData = pngData
+        self.tabs = tabs
     }
 }
 
@@ -26,7 +36,7 @@ public struct HistoryExportRow: Sendable {
 /// sibling folder).
 @MainActor
 public enum HistoryExporter {
-    public static let columnHeaders = ["#", "内容", "格式", "生成时间", "备注", "图片"]
+    public static let columnHeaders = ["#", "内容", "格式", "标签", "生成时间", "备注", "图片"]
     /// Display box for embedded barcodes, in points.
     static let imageBox = CGSize(width: 110, height: 55)
     /// Display width (CSS pixels) for Markdown and DOCX images.
@@ -48,13 +58,14 @@ public enum HistoryExporter {
                 "\(index + 1)",
                 row.text,
                 row.formatName,
+                tagsText(for: row),
                 row.dateString,
                 row.note ?? ""
             ])
             if let pngData = row.pngData {
                 _ = try await sheet.embedImageAutoSized(
                     pngData,
-                    at: "F\(rowNumber)",
+                    at: "G\(rowNumber)",
                     of: workbook,
                     maxCellWidth: imageBox.width,
                     maxCellHeight: imageBox.height,
@@ -69,9 +80,9 @@ public enum HistoryExporter {
 
     // MARK: - DOCX
 
-    /// Writes a .docx mirroring the Markdown layout: title, 条目 section with
-    /// one bullet per entry (code / inline image / 备注 / 格式 / 生成时间),
-    /// then 导出信息. Returns the exported row count.
+    /// Writes a .docx as a two-column table per entry — barcode image on the
+    /// left, details (content / format / tags / note / time) on the right —
+    /// followed by 导出信息. Returns the exported row count.
     @discardableResult
     public static func exportDOCX(rows: [HistoryExportRow], to url: URL) throws -> Int {
         var media: [(name: String, data: Data)] = []
@@ -90,13 +101,24 @@ public enum HistoryExporter {
         // Title and section headings use direct formatting so no styles.xml
         // part is required.
         body.append(paragraph(textRun("EasyBarcode 历史记录"), size: 32, bold: true))
-        body.append(paragraph(textRun("条目"), size: 26, bold: true))
+        body.append(paragraph(textRun("记录明细"), size: 26, bold: true))
+
+        // One row per entry: [barcode image | details]. Widths total the
+        // usable page width (A4 11906 twips minus 1440 twips per margin).
+        let imageColumn = 3900
+        let detailColumn = 5126
+        var tableRows: [String] = []
+
+        func cell(_ inner: String, width: Int) -> String {
+            "<w:tc><w:tcPr><w:tcW w:w=\"\(width)\" w:type=\"dxa\"/>"
+                + "<w:vAlign w:val=\"center\"/></w:tcPr>\(inner)</w:tc>"
+        }
 
         for (index, row) in rows.enumerated() {
-            let imageName = "image\(index + 1).png"
-            body.append(paragraph("<w:t xml:space=\"preserve\">• </w:t>" + textRun(row.text)))
+            var imageCell = "<w:p/>"
 
             if let pngData = row.pngData {
+                let imageName = "image\(index + 1).png"
                 media.append((imageName, pngData))
                 let relID = "rId\(media.count)"
                 relationships.append(
@@ -107,25 +129,53 @@ public enum HistoryExporter {
                 if let size = pngPixelSize(pngData) {
                     let extent = displayExtent(
                         pixelSize: size,
-                        maxWidth: imageDisplayWidth,
-                        maxHeight: 180
+                        maxWidth: 175,
+                        maxHeight: 160
                     )
-                    body.append(imageParagraph(relID: relID, name: imageName, extent: extent, id: media.count + 1))
+                    imageCell = imageParagraph(
+                        relID: relID,
+                        name: imageName,
+                        extent: extent,
+                        id: media.count + 1
+                    )
                 }
             }
 
-            body.append(paragraph(textRun("备注：\(row.note ?? "—")"), size: 18))
-            body.append(paragraph(textRun("格式：\(row.formatName)"), size: 18))
-            body.append(paragraph(textRun("生成时间：\(row.dateString)"), size: 18))
+            let details = paragraph(textRun(row.text), size: 24, bold: true)
+                + paragraph(textRun("格式：\(row.formatName)"), size: 18)
+                + paragraph(textRun("标签：\(tagsText(for: row))"), size: 18)
+                + paragraph(textRun("备注：\(row.note ?? "—")"), size: 18)
+                + paragraph(textRun("生成时间：\(row.dateString)"), size: 18)
+
+            tableRows.append(
+                "<w:tr>" + cell(imageCell, width: imageColumn)
+                    + cell(details, width: detailColumn) + "</w:tr>"
+            )
+        }
+
+        let borders = ["top", "left", "bottom", "right", "insideH", "insideV"]
+            .map { "<w:\($0) w:val=\"single\" w:sz=\"4\" w:space=\"0\" w:color=\"D2D2D7\"/>" }
+            .joined()
+        let table = "<w:tbl><w:tblPr>"
+            + "<w:tblW w:w=\"\(imageColumn + detailColumn)\" w:type=\"dxa\"/>"
+            + "<w:tblBorders>\(borders)</w:tblBorders>"
+            + "<w:tblCellMar>"
+            + "<w:top w:w=\"100\" w:type=\"dxa\"/><w:left w:w=\"100\" w:type=\"dxa\"/>"
+            + "<w:bottom w:w=\"100\" w:type=\"dxa\"/><w:right w:w=\"100\" w:type=\"dxa\"/>"
+            + "</w:tblCellMar></w:tblPr>"
+            + "<w:tblGrid><w:gridCol w:w=\"\(imageColumn)\"/><w:gridCol w:w=\"\(detailColumn)\"/></w:tblGrid>"
+            + tableRows.joined()
+            + "</w:tbl>"
+
+        if !rows.isEmpty {
+            body.append(table)
+            body.append("<w:p/>")
         }
 
         body.append(paragraph(textRun("导出信息"), size: 26, bold: true))
         let exportedAt = DateFormatter.localizedString(from: Date(), dateStyle: .medium, timeStyle: .short)
         body.append(paragraph(textRun("导出时间：\(exportedAt)"), size: 18))
         body.append(paragraph(textRun("共 \(rows.count) 条"), size: 18))
-        if !media.isEmpty {
-            body.append(paragraph(textRun("图片随文档一并嵌入，可在 Word 中直接查看。"), size: 18))
-        }
         body.append(
             "<w:sectPr><w:pgSz w:w=\"11906\" w:h=\"16838\"/>"
                 + "<w:pgMar w:top=\"1440\" w:right=\"1440\" w:bottom=\"1440\" w:left=\"1440\"/></w:sectPr>"
@@ -214,6 +264,7 @@ public enum HistoryExporter {
                     + "<td>\(index + 1)</td>"
                     + "<td class=\"code\">\(htmlEscape(row.text))</td>"
                     + "<td>\(htmlEscape(row.formatName))</td>"
+                    + "<td>\(htmlEscape(tagsText(for: row)))</td>"
                     + "<td>\(htmlEscape(row.dateString))</td>"
                     + "<td>\(htmlText(row.note ?? "—"))</td>"
                     + "<td class=\"img\">\(imageCell)</td>"
@@ -241,7 +292,7 @@ public enum HistoryExporter {
         </head>
         <body>
         <h1>EasyBarcode 历史记录</h1>
-        <h2>条目</h2>
+        <h2>记录明细</h2>
         <table>
         <tr><th>\(columnHeaders.joined(separator: "</th><th>"))</th></tr>
         \(tableRows.joined(separator: "\n"))
@@ -250,7 +301,6 @@ public enum HistoryExporter {
         <ul class="meta">
         <li>导出时间：\(htmlEscape(exportedAt))</li>
         <li>共 \(rows.count) 条</li>
-        <li>图片以内嵌方式存储，本文件可单独分发。</li>
         </ul>
         </body>
         </html>
@@ -328,7 +378,7 @@ public enum HistoryExporter {
 
     // MARK: - Markdown
 
-    /// Writes a Markdown document mirroring the DOCX layout: 条目 section with
+    /// Writes a Markdown document mirroring the DOCX layout: 记录明细 section with
     /// one bullet per entry, then 导出信息. Barcode PNGs are stored in a
     /// sibling folder (`<stem>图片/`) and referenced by relative paths.
     /// Returns the exported row count.
@@ -353,7 +403,7 @@ public enum HistoryExporter {
         var lines: [String] = [
             "# EasyBarcode 历史记录",
             "",
-            "## 条目",
+            "## 记录明细",
             ""
         ]
 
@@ -378,6 +428,8 @@ public enum HistoryExporter {
             lines.append("")
             lines.append("  格式：\(escapeMarkdown(row.formatName))")
             lines.append("")
+            lines.append("  标签：\(escapeMarkdown(tagsText(for: row)))")
+            lines.append("")
             lines.append("  生成时间：\(escapeMarkdown(row.dateString))")
             lines.append("")
         }
@@ -386,9 +438,6 @@ public enum HistoryExporter {
         lines.append("")
         lines.append("- 导出时间：\(exportedAt)")
         lines.append("- 共 \(rows.count) 条")
-        if hasImages {
-            lines.append("- 图片存放在同级文件夹「\(imagesFolderName)」，移动本文件时请一并移动。")
-        }
         lines.append("")
 
         try lines.joined(separator: "\n").write(to: url, atomically: true, encoding: .utf8)
@@ -396,6 +445,12 @@ public enum HistoryExporter {
     }
 
     // MARK: - Helpers
+
+    /// Multiple tags are joined for display; entries without tags show a dash
+    /// so every export keeps the same column/line shape.
+    static func tagsText(for row: HistoryExportRow) -> String {
+        row.tabs.isEmpty ? "—" : row.tabs.joined(separator: "、")
+    }
 
     /// Backtick-wrapped code span; falls back to escaped plain text when the
     /// content itself contains backticks.

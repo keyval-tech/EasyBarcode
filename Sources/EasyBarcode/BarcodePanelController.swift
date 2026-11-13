@@ -122,10 +122,12 @@ final class BarcodePanelController: NSObject, NSTextFieldDelegate {
     /// digits when the user moves to EAN-13).
     private func applyFormat(_ format: BarcodeFormat) {
         view.setFormat(format)
-        view.textField.stringValue = BarcodePayloadBuilder.sanitize(
-            view.textField.stringValue,
-            for: format
-        )
+        let clean = BarcodePayloadBuilder.sanitize(view.textField.stringValue, for: format)
+        if let editor = view.textField.currentEditor() as? NSTextView {
+            editor.string = clean
+            editor.selectedRange = NSRange(location: (clean as NSString).length, length: 0)
+        }
+        view.textField.stringValue = clean
         showInputState()
     }
 
@@ -232,6 +234,24 @@ final class BarcodePanelController: NSObject, NSTextFieldDelegate {
         return parts.joined(separator: " · ")
     }
 
+    // MARK: - Format cycling
+
+    /// Tab walks the formats that can encode the current input; Shift-Tab
+    /// walks back. Before anything is typed every format is offered so the
+    /// user can pick one first.
+    private func cycleFormat(backwards: Bool) {
+        let available = BarcodePayloadBuilder.supportedFormats(for: view.textField.stringValue)
+        guard available.count > 1 else { return }
+
+        let next: Int
+        if let index = available.firstIndex(of: view.selectedFormat) {
+            next = (index + (backwards ? available.count - 1 : 1)) % available.count
+        } else {
+            next = backwards ? available.count - 1 : 0
+        }
+        applyFormat(available[next])
+    }
+
     // MARK: - Actions
 
     @objc func copyImage() {
@@ -318,6 +338,9 @@ final class BarcodePanelController: NSObject, NSTextFieldDelegate {
 
     private func configureInteractions() {
         view.textField.delegate = self
+        window.onTabKey = { [weak self] backwards in
+            self?.cycleFormat(backwards: backwards)
+        }
         view.textField.target = self
         view.textField.action = #selector(generateAndCopy)
 
@@ -358,6 +381,23 @@ final class BarcodePanelController: NSObject, NSTextFieldDelegate {
     }
 
     // MARK: - NSTextFieldDelegate
+
+    /// Tab inside the field editor cycles formats instead of moving focus.
+    func control(
+        _ control: NSControl,
+        textView: NSTextView,
+        doCommandBy commandSelector: Selector
+    ) -> Bool {
+        if commandSelector == #selector(NSResponder.insertTab(_:)) {
+            cycleFormat(backwards: false)
+            return true
+        }
+        if commandSelector == #selector(NSResponder.insertBacktab(_:)) {
+            cycleFormat(backwards: true)
+            return true
+        }
+        return false
+    }
 
     func controlTextDidChange(_ obj: Notification) {
         let raw = view.textField.stringValue

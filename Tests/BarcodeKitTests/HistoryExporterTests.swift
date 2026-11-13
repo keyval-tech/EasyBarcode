@@ -45,7 +45,8 @@ final class HistoryExporterTests: XCTestCase {
                 formatName: "EAN-13",
                 dateString: "2026-11-08 09:24",
                 note: "样品 | 给客户",
-                pngData: try makePNG(width: 120, height: 64)
+                pngData: try makePNG(width: 120, height: 64),
+                tabs: ["测试", "样品"]
             ),
             HistoryExportRow(
                 text: "ORDER-12345",
@@ -59,7 +60,8 @@ final class HistoryExporterTests: XCTestCase {
                 formatName: "QR",
                 dateString: "2026-11-08 09:35",
                 note: "多行\n备注",
-                pngData: nil
+                pngData: nil,
+                tabs: ["测试"]
             )
         ]
     }
@@ -98,11 +100,11 @@ final class HistoryExporterTests: XCTestCase {
 
         let markdown = try String(contentsOf: url, encoding: .utf8)
         XCTAssertTrue(markdown.contains("# EasyBarcode 历史记录"))
-        XCTAssertTrue(markdown.contains("## 条目"))
+        XCTAssertTrue(markdown.contains("## 记录明细"))
         XCTAssertTrue(markdown.contains("## 导出信息"))
         // Metadata section comes after the entries.
         XCTAssertLessThan(
-            markdown.range(of: "## 条目")!.upperBound,
+            markdown.range(of: "## 记录明细")!.upperBound,
             markdown.range(of: "- 导出时间：")!.lowerBound
         )
         XCTAssertTrue(markdown.contains("- 共 3 条"))
@@ -110,7 +112,10 @@ final class HistoryExporterTests: XCTestCase {
         XCTAssertTrue(markdown.contains("  <img src=\"EasyBarcode历史-2026-11-08图片/EAN-13_6901234567892.png\" width=\"180\">"))
         XCTAssertTrue(markdown.contains("  备注：样品 \\| 给客户"))
         XCTAssertTrue(markdown.contains("  格式：EAN-13"))
+        XCTAssertTrue(markdown.contains("  标签：测试、样品"))
+        XCTAssertTrue(markdown.contains("  标签：—"))
         XCTAssertTrue(markdown.contains("  生成时间：2026-11-08 09:24"))
+        XCTAssertFalse(markdown.contains("移动本文件时请一并移动"))
         XCTAssertTrue(markdown.contains("- `订单号 9527`"))
         XCTAssertTrue(markdown.contains("  备注：多行 / 备注"))
         XCTAssertFalse(markdown.contains("| # |"))
@@ -173,10 +178,15 @@ final class HistoryExporterTests: XCTestCase {
         // inline drawings (rows 1 and 2 have images; row 3 does not).
         let document = try documentXML(of: url)
         XCTAssertTrue(document.contains("EasyBarcode 历史记录"))
-        XCTAssertTrue(document.contains("条目"))
-        XCTAssertTrue(document.contains("• "))
+        XCTAssertTrue(document.contains("记录明细"))
+        // Two-column layout: one table row per entry, image left / details right.
+        XCTAssertEqual(document.components(separatedBy: "<w:tbl>").count - 1, 1)
+        XCTAssertEqual(document.components(separatedBy: "<w:tr>").count - 1, 3)
+        XCTAssertTrue(document.contains("<w:tblGrid><w:gridCol w:w=\"3900\"/><w:gridCol w:w=\"5126\"/></w:tblGrid>"))
         XCTAssertTrue(document.contains("6901234567892"))
         XCTAssertTrue(document.contains("备注：样品"))
+        XCTAssertTrue(document.contains("标签：测试、样品"))
+        XCTAssertFalse(document.contains("图片随文档一并嵌入"))
         XCTAssertTrue(document.contains("导出信息"))
         XCTAssertEqual(document.components(separatedBy: "<w:drawing>").count - 1, 2)
 
@@ -199,10 +209,12 @@ final class HistoryExporterTests: XCTestCase {
 
         let html = try String(contentsOf: url, encoding: .utf8)
         XCTAssertTrue(html.contains("<title>EasyBarcode 历史记录</title>"))
-        XCTAssertTrue(html.contains("## 条目".replacingOccurrences(of: "## ", with: "<h2>")))
+        XCTAssertTrue(html.contains("## 记录明细".replacingOccurrences(of: "## ", with: "<h2>")))
         XCTAssertTrue(html.contains("<table>"))
-        XCTAssertTrue(html.contains("<th>#</th><th>内容</th><th>格式</th><th>生成时间</th><th>备注</th><th>图片</th>"))
+        XCTAssertTrue(html.contains("<th>#</th><th>内容</th><th>格式</th><th>标签</th><th>生成时间</th><th>备注</th><th>图片</th>"))
         XCTAssertTrue(html.contains("<td class=\"code\">6901234567892</td>"))
+        XCTAssertTrue(html.contains("<td>测试、样品</td>"))
+        XCTAssertTrue(html.contains("<td>—</td>"))
         XCTAssertTrue(html.contains("<td>样品 | 给客户</td>"))
         // Two embedded images as data URIs; row 3 has none.
         XCTAssertEqual(html.components(separatedBy: "data:image/png;base64,").count - 1, 2)
@@ -211,6 +223,7 @@ final class HistoryExporterTests: XCTestCase {
         XCTAssertTrue(html.contains("<h2>导出信息</h2>"))
         XCTAssertTrue(html.contains("共 3 条"))
         XCTAssertFalse(html.contains("images-fallback-folder"))
+        XCTAssertFalse(html.contains("本文件可单独分发"))
     }
 
     // MARK: - Helpers
@@ -282,9 +295,17 @@ final class HistoryExporterTests: XCTestCase {
         doc = docx.Document(r"\(url.path)")
         texts = [p.text for p in doc.paragraphs]
         assert "EasyBarcode 历史记录" in texts, texts
-        assert "条目" in texts
+        assert "记录明细" in texts
         assert any("6901234567892" in t for t in texts), texts
         assert len(doc.inline_shapes) == 2, len(doc.inline_shapes)
+        assert len(doc.tables) == 1, len(doc.tables)
+        table = doc.tables[0]
+        assert len(table.rows) == 3, len(table.rows)
+        assert len(table.columns) == 2, len(table.columns)
+        first = table.rows[0].cells
+        assert "6901234567892" in first[1].text, first[1].text
+        assert "标签：测试、样品" in first[1].text, first[1].text
+        assert len(first[0].paragraphs) >= 1
         print("PYTHON-DOCX-OK")
         """
 
@@ -315,9 +336,14 @@ final class HistoryExporterTests: XCTestCase {
         assert ws["A1"].value == "#", ws["A1"].value
         assert ws["B2"].value == "6901234567892", ws["B2"].value
         assert ws["C2"].value == "EAN-13"
-        assert ws["D3"].value == "2026-11-08 09:30", ws["D3"].value
-        assert ws["E4"].value == "多行\\n备注", ws["E4"].value
+        assert ws["D1"].value == "标签", ws["D1"].value
+        assert ws["D2"].value == "测试、样品", ws["D2"].value
+        assert ws["D3"].value == "—", ws["D3"].value
+        assert ws["E3"].value == "2026-11-08 09:30", ws["E3"].value
+        assert ws["F4"].value == "多行\\n备注", ws["F4"].value
         assert len(ws._images) == 2, len(ws._images)
+        # Images live in column G (index 6), after the new 标签 column.
+        assert {img.anchor._from.col for img in ws._images} == {6}, [img.anchor._from.col for img in ws._images]
         print("OPENPYXL-OK")
         """
 

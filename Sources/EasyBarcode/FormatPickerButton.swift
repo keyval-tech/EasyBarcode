@@ -31,7 +31,7 @@ final class FormatPickerButton: NSButton {
 
         target = self
         action = #selector(showMenu)
-        toolTip = "选择条码格式"
+        toolTip = "选择条码格式（Tab 切换）"
         setAccessibilityLabel("条码格式")
 
         wantsLayer = true

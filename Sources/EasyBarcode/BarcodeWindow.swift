@@ -3,6 +3,17 @@ import AppKit
 /// A standard titled window that also handles the shortcut keys we need even
 /// though this is an agent (menu-bar-only) app without a visible main menu.
 final class BarcodeWindow: NSWindow {
+    /// Called for Tab / Shift-Tab when the field editor does not own the key.
+    var onTabKey: ((_ backwards: Bool) -> Void)?
+
+    override func keyDown(with event: NSEvent) {
+        if event.keyCode == 48, !(firstResponder is NSTextView) {
+            onTabKey?(event.modifierFlags.contains(.shift))
+            return
+        }
+        super.keyDown(with: event)
+    }
+
     override func performKeyEquivalent(with event: NSEvent) -> Bool {
         guard event.modifierFlags.contains(.command) else {
             return super.performKeyEquivalent(with: event)

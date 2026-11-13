@@ -66,6 +66,20 @@ public enum BarcodePayloadBuilder {
         eanCheckDigit(body: "0" + body)
     }
 
+    /// Formats that can encode `rawInput` as-is, in `BarcodeFormat.allCases`
+    /// order. A format is excluded when it would have to discard part of the
+    /// input (e.g. EAN-13 for text) or when the input is the wrong length.
+    /// Empty input reports every format so Tab can cycle before typing.
+    public static func supportedFormats(for rawInput: String) -> [BarcodeFormat] {
+        let trimmed = rawInput.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return BarcodeFormat.allCases }
+
+        return BarcodeFormat.allCases.filter { format in
+            guard sanitize(trimmed, for: format) == trimmed else { return false }
+            return make(from: trimmed, requested: format).isValid
+        }
+    }
+
     public static func make(from rawInput: String, requested: BarcodeFormat) -> BarcodePayload {
         let text = sanitize(rawInput, for: requested)
         let format = BarcodeFormat.resolved(for: text, requested: requested)

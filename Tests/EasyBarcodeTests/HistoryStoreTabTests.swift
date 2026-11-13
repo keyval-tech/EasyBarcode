@@ -136,6 +136,26 @@ final class HistoryStoreTabTests: XCTestCase {
     }
 
     @MainActor
+    func testRecordingSameCodeKeepsNoteAndTags() {
+        seedThreeEntries()
+        let original = try! XCTUnwrap(store.entries.first { $0.digits == "6901234567892" })
+        store.updateNote(id: original.id, note: "客户样品\n第二行")
+        store.addTab("样品")
+        store.toggleTab(id: original.id, tab: "样品")
+
+        store.record(digits: "6901234567892", format: .ean13)
+
+        XCTAssertEqual(store.entries.count, 3, "regenerating must not add a row")
+        let refreshed = store.entries[0]
+        XCTAssertEqual(refreshed.id, original.id, "same record, not a replacement")
+        XCTAssertEqual(refreshed.note, "客户样品\n第二行")
+        XCTAssertEqual(refreshed.tabs, ["样品"])
+        XCTAssertGreaterThan(refreshed.createdAt, original.createdAt)
+        XCTAssertNotNil(refreshed.imagePath)
+        XCTAssertTrue(FileManager.default.fileExists(atPath: refreshed.imagePath ?? ""))
+    }
+
+    @MainActor
     func testSanitizeFileName() {
         XCTAssertEqual(
             HistoryExporter.sanitizeFileName("EAN-13_6901234567892"),
